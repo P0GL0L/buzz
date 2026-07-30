@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.asvlabs.buzz-jarvis-agent-lab</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HOME__/.local/bin/buzz-jarvis-secure</string>
+    <string>--relay-url</string>
+    <string>wss://asv-labs.communities.buzz.xyz</string>
+    <string>--agent-owner</string>
+    <string>f9be6e874158486901ba431c53d295feaf2734a104bf80828214c785534ddab2</string>
+    <string>--agent-command</string>
+    <string>__HOME__/.local/bin/hermes</string>
+    <string>--agent-args</string>
+    <string>acp</string>
+    <string>--session-title</string>
+    <string>Buzz agent-lab Jarvis</string>
+    <string>--subscribe</string>
+    <string>mentions</string>
+    <string>--channels</string>
+    <string>8e683b8f-14d6-4543-84cb-0a2c44ba00f4</string>
+    <string>--agents</string>
+    <string>1</string>
+    <string>--dedup</string>
+    <string>queue</string>
+    <string>--multiple-event-handling</string>
+    <string>queue</string>
+    <string>--respond-to</string>
+    <string>allowlist</string>
+    <string>--respond-to-allowlist</string>
+    <string>61da06a7dd0d252ffc38a73a8bd4ed077dea03f8ac33870cdcb24930e68b6854</string>
+    <string>--team-instructions</string>
+    <string>Agent-lab policy: one lead per task; no recursive summons; single-writer repository ownership; preserve Charles authority for external messages, deployment, spend, membership, and irreversible actions.</string>
+    <string>--lazy-pool</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BUZZ_ACP_ALLOWED_RESPOND_TO</key>
+    <string>owner-only,allowlist</string>
+    <key>BUZZ_RELAY_URL</key>
+    <string>wss://asv-labs.communities.buzz.xyz</string>
+    <key>HERMES_HOME</key>
+    <string>__HOME__/.hermes/profiles/buzz-jarvis</string>
+  </dict>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>NetworkState</key>
+    <true/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/.local/state/buzz-jarvis/agent-lab.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/.local/state/buzz-jarvis/agent-lab.log</string>
+</dict>
+</plist>

@@ -31,19 +31,18 @@ Never reuse one Nostr keypair for two profiles.
 
 ## Collaboration room
 
-Keep `Command Group v2` small for Charles, Vision, and Jarvis. Use a separate
-private `agent-lab` room for the first whole-team collaboration pilot, or the
-existing `agent-operations` lane if Charles prefers not to create another
-room.
+Keep existing operational channels separate. The first pilot runs in private
+`agent-lab` channel `8e683b8f-14d6-4543-84cb-0a2c44ba00f4`.
 
 Pilot roster:
 
 - Charles — approval authority
 - Vision — lead/orchestrator on the MacBook
 - Jarvis — Mac mini operations and infrastructure
-- Cody — POGsAlien specialist after identity and host custody are verified
-- Bumble, Codex, Fizz, Honey, and Claude — focused specialists only when
-  explicitly mentioned
+- Cody — POGsAlien specialist after identity and host custody are verified;
+  currently excluded
+- Bumble, Codex, Fizz, Honey, and Claude — later focused specialists only after
+  separate admission
 
 Operating policy:
 
@@ -150,6 +149,13 @@ The complete registry and relay-safe projection default to
 - Add desktop registry/search UI.
 - Add a router prompt to managed-agent base context.
 - Preserve per-host authorization at invocation time.
+
+The first signed projections were published on 2026-07-30 by their actual
+owners: Vision published 248 MacBook records and rotated Jarvis published 277
+Mac mini records. All are currently installed or catalogued rather than
+callable, so the searchable shared index intentionally has zero routable
+records. Literal documentation `@names` are enclosed in fenced registry JSON
+and do not trigger message mention resolution.
 
 `buzz skills route` selects only a current routable observation, verifies the
 owning agent identity is a Nostr pubkey and current channel member, then emits

@@ -32,6 +32,7 @@ use nostr::{Filter, Keys};
 
 #[tokio::main]
 async fn main() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
     tracing_subscriber::fmt()
         .with_env_filter(
             std::env::var("RUST_LOG")
@@ -104,7 +105,7 @@ async fn run_subscribe(url: &str, keys: &Keys, channel: &str, kind: u16) {
 
     let sub_id = format!("cli-sub-{}", uuid::Uuid::new_v4());
     let filter = Filter::new().kind(nostr::Kind::Custom(kind)).custom_tags(
-        nostr::SingleLetterTag::lowercase(nostr::Alphabet::E),
+        nostr::SingleLetterTag::lowercase(nostr::Alphabet::H),
         [channel],
     );
 
@@ -122,10 +123,13 @@ async fn run_subscribe(url: &str, keys: &Keys, channel: &str, kind: u16) {
                 event,
             }) => {
                 println!(
-                    "[{}] kind={} pubkey={} content={}",
+                    "[{}] id={} verified={} kind={} pubkey={} tags={} content={}",
                     event.created_at,
+                    event.id,
+                    event.verify().is_ok(),
                     event.kind.as_u16(),
                     event.pubkey,
+                    serde_json::to_string(&event.tags).unwrap_or_else(|_| "[]".to_string()),
                     event.content
                 );
             }

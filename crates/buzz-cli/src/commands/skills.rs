@@ -850,21 +850,23 @@ async fn cmd_route(client: &BuzzClient, params: RouteParams<'_>) -> Result<(), C
 
 fn publication_chunks(registry: &RelaySafeRegistry) -> Result<Vec<String>, CliError> {
     let header = format!(
-        "skill-registry/v1\nrevision: {}\ndigest: {}\n",
+        "skill-registry/v1\nrevision: {}\ndigest: {}\n```json\n",
         registry.registry_revision, registry.registry_digest
     );
+    let footer = "```\n";
     let mut chunks = Vec::new();
     let mut current = header.clone();
     for record in &registry.skills {
         let line = serde_json::to_string(record)
             .map_err(|e| CliError::Other(format!("failed to serialize relay record: {e}")))?;
-        if current.len() + line.len() + 1 > MAX_CONTENT_BYTES {
+        if current.len() + line.len() + 1 + footer.len() > MAX_CONTENT_BYTES {
             if current == header {
                 return Err(CliError::Usage(format!(
                     "relay-safe skill record exceeds the message size limit: {}",
                     record.skill_id
                 )));
             }
+            current.push_str(footer);
             chunks.push(current);
             current = header.clone();
         }
@@ -872,6 +874,7 @@ fn publication_chunks(registry: &RelaySafeRegistry) -> Result<Vec<String>, CliEr
         current.push('\n');
     }
     if current != header || chunks.is_empty() {
+        current.push_str(footer);
         chunks.push(current);
     }
     Ok(chunks)
@@ -1098,6 +1101,36 @@ mod tests {
             }],
         };
         assert!(select_route(&registry, "codex:review", None).is_err());
+    }
+
+    #[test]
+    fn publication_fences_registry_records_to_disable_mention_parsing() {
+        let registry = RelaySafeRegistry {
+            generated_at: Utc::now().to_rfc3339(),
+            registry_digest: "sha256:test".into(),
+            registry_revision: "revision".into(),
+            registry_version: 1,
+            ttl_seconds: 60,
+            skills: vec![RelaySafeSkill {
+                abstract_requirements: vec![],
+                availability: Availability::Unknown,
+                capabilities: vec!["Document the literal @mention syntax".into()],
+                display_name: "review".into(),
+                installation_state: InstallationState::Installed,
+                observed_at: Utc::now().to_rfc3339(),
+                owning_agent: "d".repeat(64),
+                registry_version: 1,
+                routable: false,
+                runtime_class: "codex".into(),
+                skill_id: "codex:review".into(),
+            }],
+        };
+
+        let chunks = publication_chunks(&registry).unwrap();
+        assert_eq!(chunks.len(), 1);
+        assert!(chunks[0].contains("```json\n"));
+        assert!(chunks[0].contains("@mention"));
+        assert!(chunks[0].ends_with("```\n"));
     }
 
     #[test]

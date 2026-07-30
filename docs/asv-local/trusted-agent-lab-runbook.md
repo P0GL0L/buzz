@@ -86,12 +86,13 @@ Both development copies were removed; the production keyring and production
 application data were left untouched. Standalone imports are now disabled and
 a new isolated identity passed two-restart persistence.
 
-Treat the production signer as compromised. Charles authorized production
+Treat the old production signer as compromised. Charles authorized production
 identity rotation and the resulting hosted membership migration on 2026-07-30.
-The replacement may be admitted additively, but do not create `agent-lab`,
-rotate Jarvis memberships, publish registry records, remove the old identity,
-or replace the production keyring until hosted ownership has transferred and
-the replacement has independently proved its authority.
+The replacement independently proved relay and channel-owner authority before
+the private pilot was created. Provider-account ownership transfer remains
+separate: do not represent the old relay owner as revoked, delete the protected
+rollback record, or claim Builderlab transfer until the provider confirms the
+replacement account owns the hosted community.
 
 ## Hosted pilot admission order
 
@@ -109,6 +110,39 @@ the replacement has independently proved its authority.
 Existing hosted channels and memberships remain out of scope except for the
 explicitly approved rotations and the new room.
 
+For Jarvis, disable the old desktop-managed runtime before restarting
+production Buzz. Add the replacement role-for-role, read every new membership
+back, then remove and permanently restrict the old key. A private key must
+enter the process only through protected host storage and a wrapper:
+
+```bash
+launchctl print gui/$(id -u)/com.asvlabs.buzz-jarvis-agent-lab
+```
+
+Use `docs/asv-local/com.asvlabs.buzz-jarvis-agent-lab.plist.example` as the
+non-secret service template. Keep the hosted relay URL in the launchd
+environment so Hermes tool subprocesses inherit it. Do not leave debug logging
+enabled after proof.
+
+## Skill publication
+
+Validate both representations on the owning host. Publish the relay-safe file
+with the owning agent key, never the host-custodied canonical registry:
+
+```bash
+buzz skills validate ~/.buzz-dev/skill-registry/canonical.json
+buzz skills validate --relay-safe ~/.buzz-dev/skill-registry/relay-safe.json
+buzz skills list --registry ~/.buzz-dev/skill-registry/relay-safe.json --routable
+buzz skills publish \
+  --registry ~/.buzz-dev/skill-registry/relay-safe.json \
+  --channel 8e683b8f-14d6-4543-84cb-0a2c44ba00f4
+```
+
+Published JSON is fenced to prevent literal documentation `@names` from being
+treated as message mentions. Installed, catalogued, degraded, unreachable, or
+expired records remain searchable but not routable. A routing failure must
+name the unavailable owner/state; it must never select a stand-in.
+
 ## Rollback
 
 - Desktop code: revert the focused development-isolation, workspace, or skill
@@ -117,6 +151,8 @@ explicitly approved rotations and the new room.
   development bundle/keyring identifiers.
 - Containers: `docker compose down` preserves volumes.
 - Hosted pilot: remove the new room memberships and revoke newly admitted
-  identities; do not mutate pre-existing rooms.
+  identities. For a role-preserving identity rotation, restore the old role
+  only from the protected rollback record and only after lifting its explicit
+  relay restriction.
 - Skills: stop publishing the registry revision, retain the prior signed digest,
   and rescan the owning host. Never substitute a local stand-in.

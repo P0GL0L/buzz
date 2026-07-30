@@ -1,7 +1,9 @@
-# Agent-Lab Foundation Evidence — 2026-07-29
+# Agent-Lab Foundation Evidence — 2026-07-29 (updated 2026-07-30)
 
-This is an implementation snapshot, not a claim that the hosted pilot is live.
-Local, native, hosted, and human-acceptance gates remain separate.
+This is an implementation snapshot. The private hosted pilot is live, while
+provider-account ownership transfer and named-human native visual acceptance
+remain separate external gates. Local, native, hosted, and human-acceptance
+proof are not interchangeable.
 
 ## Fork and identity isolation
 
@@ -39,9 +41,13 @@ development-only key was generated. The production keyring and application
 data were not changed.
 
 Charles explicitly authorized production identity rotation and the associated
-hosted membership migration on 2026-07-30. The rotation is now in its
-additive, rollback-safe phase; the old signer has not been removed or replaced
-in the production keyring.
+hosted membership migration on 2026-07-30. Production Buzz now uses replacement
+public key
+`f9be6e874158486901ba431c53d295feaf2734a104bf80828214c785534ddab2`.
+The exact pre-rotation keyring blob is retained as a protected rollback record
+under a separate service. Two production-app restarts preserved the
+replacement identity. The old relay owner remains available only for the
+provider-account ownership gate; it is not represented as revoked.
 
 ## Native and web QA
 
@@ -122,13 +128,36 @@ Repository gate status:
 - New Jarvis public key:
   `d98b269848d6aaa6eb31df0473e846cc4d9c65b38d6fde60cc34ff6f3d6462b2`
 - The replacement secret is mode `0600` on the Mac mini and the wrapper is mode
-  `0700`. Test process arguments and logs contained no private key.
+  `0700`. The launchd service invokes only the wrapper path, reads the key from
+  protected storage, and exposes no private key in its arguments, plist, or
+  logs.
+- The service is limited to `agent-lab`, one active worker, mention dispatch,
+  Charles as owner, and a Vision allowlist. Its isolated Hermes home is
+  `~/.hermes/profiles/buzz-jarvis`.
+- Hosted HTTP writes that are definitively rejected before the relay by
+  Cloudflare Access now fall back to authenticated NIP-01 WebSocket publication
+  of the exact already-signed event. Ambiguous delivery failures do not retry.
 - Offline signed challenge:
   `96af8488-4915-4cf9-bda0-6c5d4a4ee149`
 - Verified Nostr event:
   `7773ad2fdb2aa433a62ad118e7fa29779a275e85cb925e872548d287b0f94e36`
-- The new bridge remains offline. Old hosted membership revocation, new
-  membership, and a hosted signed reply are pending the production-admin gate.
+- Charles-to-Jarvis request
+  `11d1c493783fca1d1b0984766910cc7f63c0543d2dd44b5f3e3429869f67bc0e`
+  received the signed, correctly threaded runtime reply
+  `3bc42999a1a6fc0550dc8e04c23be68fde837f26d1c8c75be395233f9e8d8fc4`.
+- Vision-to-Jarvis request
+  `53525859602239c74751caf7df10d4015000b9572f326305acc65a8ae94c2f35`
+  received the signed, correctly threaded runtime reply
+  `ab4c535e03285fec3401d95ab116eb809e5097b185817edbaee3d667e9e3cb31`.
+- The replacement inherited the old Jarvis role in nine pre-existing channels
+  only after every new membership was read back. The old key now has zero
+  channel memberships.
+- The old production-managed Jarvis entry has start and restart disabled. A
+  production-app restart started Vision but did not restart old Jarvis.
+- Permanent moderation event
+  `aa03927df1f32199c7bac88830e7a085f99682f402f3488cd9c1cccd186a9892`
+  revoked the old key. A fresh connection using that key was rejected with
+  `blocked: you are banned from this community`.
 
 ## Skill inventories
 
@@ -148,8 +177,29 @@ Mac mini inventory:
 - Canonical and relay-safe validation passed on the owning host.
 - Registry files are mode `0600`.
 
-All current observations are intentionally `installed`, not `callable`.
-Therefore no record is routable and nothing has been published to a relay.
+All current observations are intentionally `installed` or `catalogued`, not
+`callable`. Therefore no record is routable. A real route request against an
+installed Vision record returned `no current routable observation`; it did not
+fall back to another host or identity.
+
+After relay-safe validation, Vision published its 248-record projection in
+three signed events:
+
+- `d152c4301c1071deb82487df6029570a40dd59291f631a37181e91c6528209ef`
+- `4fad7311335af2c361b6ea51222313313656b8d6a543c21f46f768901ffaee5f`
+- `d54ae993ad3898c161b659062b0749adf6b7a068687486c2716898465d6c2a9b`
+
+Rotated Jarvis published its 277-record projection in three signed events:
+
+- `347a11156066c46ba04cca81142830c18523f93b0f08a7354902028bd5e8f010`
+- `6319241bbcb3ba0f3d9bebd96ee7a95121b016fec002be148b6c514848bc37a6`
+- `2e4df0ff2b95fbf4a84129fa8e220cfe1356b829f114917b7e84554ba9c2f4ea`
+
+Every event verified against its owning identity. Registry JSON is fenced so
+literal skill documentation such as `@mention` is not interpreted as live
+Buzz mentions. An earlier partial, unfenced publication was superseded after
+the mention preflight safely rejected the affected chunks.
+
 POGsAlien/Cody remains excluded.
 
 ## Hosted status
@@ -158,8 +208,9 @@ POGsAlien/Cody remains excluded.
   `185c22c7a959c8d341fc4ab07216af3b083d0b9055ebe21a543d0bbbb17fd11c`
 - Replacement Charles public key:
   `f9be6e874158486901ba431c53d295feaf2734a104bf80828214c785534ddab2`
-- The replacement signer is stored in a separate protected staging keyring.
-  Its local signed challenge verified before any hosted write.
+- The replacement signer is the installed production identity. Its local
+  signed challenge verified before any hosted write, and the production app
+  retained it across restart.
 - The old relay owner added the replacement as a relay administrator in event
   `830d2c7ba7391d849166745ff79442a0ffb937b3d11dfb83bb266491229bb850`.
   The relay-signed kind `13534` snapshot
@@ -168,16 +219,20 @@ POGsAlien/Cody remains excluded.
   administrator.
 - The replacement published its own hosted profile in event
   `d3861fc26c17b770546510d9ae37efab9c7d9950926a08fed4518b9fa95c1bbe`.
-- The replacement was added first as administrator and then as co-owner to all
-  12 pre-existing channels. A fresh read signed by the replacement reported
-  both old and new Charles identities as owner in all 12 channels.
-- No old Charles relay or channel membership has been removed. The installed
-  production keyring still holds the old signer.
-- Builderlab ownership transfer is blocked on the required human sign-in. The
-  production app currently has no Builderlab session; credentials are not
-  collected or entered by automation.
-- No `agent-lab` room was created.
-- No registry record was published.
-- Existing hosted channel content, settings, and non-rotation memberships were
-  not changed.
-- The old Jarvis bridge was stopped as an explicit security rotation action.
+- The replacement is an owner in every pre-existing hosted channel visible to
+  the production account. The old Charles identity remains relay owner and
+  co-owner because the Builderlab provider account still reports no
+  transferable community under the replacement login. This is an external
+  provider-ownership gate, not a relay or channel-authority failure.
+- Private channel `agent-lab`
+  (`8e683b8f-14d6-4543-84cb-0a2c44ba00f4`) has exactly three members:
+  replacement Charles as owner, Vision as bot, and rotated Jarvis as member.
+- Charles-to-Vision request
+  `1956a816d2090b1109b8bde4ad659d4096b2fdff6f9c87e5d45b5fb806a51f2c`
+  received signed reply
+  `7a3e95a9c35e4847d797480420505e0cd7928e52be7da3f22ddb53f4e5f203a2`.
+- An unlisted test identity could neither authenticate to read the relay nor
+  post a Jarvis mention. Jarvis logs contain no trace of the rejected token.
+- Existing hosted content and channel settings were not changed. Membership
+  changes were limited to the explicitly approved Charles/Jarvis rotations and
+  the new private room.
