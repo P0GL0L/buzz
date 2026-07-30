@@ -37,9 +37,9 @@ Charles's explicit approval.
 - Desktop unit suite: 3,786 passing tests.
 - Native Tauri suite: 1,878 passing, 14 ignored OS-keychain/real-relay tests,
   plus three passing mixer diagnostics. The default full-suite concurrency
-  reproduced three process-probe flakes; the repository recipe now bounds
-  native test parallelism to four threads, and the complete suite passed twice
-  under that repeatable setting.
+  reproduced process-probe flakes, including while other pre-push suites ran
+  concurrently. The repository recipe now serializes this native suite; the
+  complete suite passed under the bounded setting.
 - Focused reader/browser/video Playwright matrix: 10 passing tests.
 - Workspace matrix covers Markdown, PDF, malformed PDF, DOCX, XLSX, PPTX,
   unknown files, images, browser navigation, blocked-frame fallback, restart,

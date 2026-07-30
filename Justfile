@@ -213,10 +213,10 @@ desktop-tauri-check: _ensure-sidecar-stubs
 
 # Run desktop Tauri Rust unit tests
 desktop-tauri-test: _ensure-sidecar-stubs
-    # Several process-probe tests intentionally launch child processes. Bound
-    # parallelism so a full native run does not exhaust transient process/FD
-    # capacity and fail probes that pass in isolation.
-    cd desktop/src-tauri && RUST_TEST_THREADS=4 cargo test
+    # Several process-probe tests intentionally launch child processes while
+    # the pre-push hook runs other suites concurrently. Serialize this suite so
+    # transient process/FD pressure cannot turn successful probes into None.
+    cd desktop/src-tauri && RUST_TEST_THREADS=1 cargo test
 
 # Verify compiled-flag behavior under both compile states (clean + internal).
 # Runs the observer_archive focused test twice with independently supplied
