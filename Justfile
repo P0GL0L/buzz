@@ -2,6 +2,12 @@
 
 set dotenv-load := true
 
+# Docker Desktop does not always install a global CLI symlink on macOS. Keep
+# the documented `just` workflows self-contained while leaving other platforms
+# on their existing PATH.
+docker_desktop_path := if os() == "macos" { "/Applications/Docker.app/Contents/Resources/bin:" } else { "" }
+export PATH := docker_desktop_path + env_var("PATH")
+
 desktop_dir := "desktop"
 desktop_tauri_manifest := "desktop/src-tauri/Cargo.toml"
 web_dir := "web"
@@ -163,19 +169,26 @@ _ensure-sidecar-stubs:
 _ensure-services:
     #!/usr/bin/env bash
     set -euo pipefail
-    pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-    redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
-    if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
+    services_ready() {
+        local pg redis keycloak minio prometheus adminer
+        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
+        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
+        keycloak=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-keycloak 2>/dev/null || echo "not_found")
+        minio=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-minio 2>/dev/null || echo "not_found")
+        prometheus=$(docker inspect --format '{{"{{"}}.State.Running{{"}}"}}' buzz-prometheus 2>/dev/null || echo "not_found")
+        adminer=$(docker inspect --format '{{"{{"}}.State.Running{{"}}"}}' buzz-adminer 2>/dev/null || echo "not_found")
+        [[ "$pg" == "healthy" && "$redis" == "healthy" && "$keycloak" == "healthy" &&
+           "$minio" == "healthy" && "$prometheus" == "true" && "$adminer" == "true" ]]
+    }
+    if services_ready; then
         echo "Services already healthy"
         exit 0
     fi
     echo "Starting services..."
-    docker compose up -d || true
+    docker compose up -d
     echo -n "Waiting for services"
-    for i in $(seq 1 40); do
-        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
-        if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
+    for i in $(seq 1 60); do
+        if services_ready; then
             echo " ready"
             exit 0
         fi
@@ -200,7 +213,10 @@ desktop-tauri-check: _ensure-sidecar-stubs
 
 # Run desktop Tauri Rust unit tests
 desktop-tauri-test: _ensure-sidecar-stubs
-    cd desktop/src-tauri && cargo test
+    # Several process-probe tests intentionally launch child processes. Bound
+    # parallelism so a full native run does not exhaust transient process/FD
+    # capacity and fail probes that pass in isolation.
+    cd desktop/src-tauri && RUST_TEST_THREADS=4 cargo test
 
 # Verify compiled-flag behavior under both compile states (clean + internal).
 # Runs the observer_archive focused test twice with independently supplied
@@ -387,6 +403,7 @@ local-stack-backup:
 # Prove that persistent Compose services recover without deleting volumes.
 local-stack-restart-proof:
     docker compose restart
+    just _ensure-services
     ./scripts/verify-local-stack.sh
 
 # ─── Run ──────────────────────────────────────────────────────────────────────

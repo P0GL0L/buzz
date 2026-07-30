@@ -13,8 +13,8 @@ running=$(docker inspect --format '{{.State.Running}}' buzz-postgres 2>/dev/null
   exit 1
 }
 
-mkdir -p "$backup_dir"
 umask 077
+mkdir -p "$backup_dir"
 docker exec buzz-postgres pg_dump -U buzz -d buzz --format=custom >"$backup_dir/buzz.pgcustom"
 docker exec buzz-postgres psql -U buzz -d buzz -Atc \
   "select version, description, success, installed_on from _sqlx_migrations order by version" \

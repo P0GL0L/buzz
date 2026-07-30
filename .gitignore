@@ -36,6 +36,9 @@ blob-report/
 # Host-custodied native QA fingerprints (may contain local path metadata)
 /build/native-qa/
 
+# Host-custodied local-stack backups (database and image inventory)
+/build/local-stack-backups/
+
 # Node modules (pnpm workspace hoists to root)
 node_modules/
 

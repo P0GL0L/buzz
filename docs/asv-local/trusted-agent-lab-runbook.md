@@ -50,14 +50,17 @@ just local-stack-verify --with-relay
 ```
 
 The Compose project owns persistent Postgres, MinIO, and Prometheus volumes.
+All published development-service ports bind to `127.0.0.1`; do not widen
+those bindings for tailnet access.
 `docker compose down` stops services and preserves those volumes.
+`just local-stack-verify --with-relay` also requires an accepted WebSocket
+upgrade, not only HTTP health responses.
 
 Before destructive schema testing:
 
 ```bash
 just local-stack-backup
-docker compose restart
-just local-stack-verify
+just local-stack-restart-proof
 ```
 
 The backup command creates a mode-private logical Postgres backup, migration

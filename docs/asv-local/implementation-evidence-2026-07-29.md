@@ -35,22 +35,67 @@ Charles's explicit approval.
 ## Native and web QA
 
 - Desktop unit suite: 3,786 passing tests.
+- Native Tauri suite: 1,878 passing, 14 ignored OS-keychain/real-relay tests,
+  plus three passing mixer diagnostics. The default full-suite concurrency
+  reproduced three process-probe flakes; the repository recipe now bounds
+  native test parallelism to four threads, and the complete suite passed twice
+  under that repeatable setting.
 - Focused reader/browser/video Playwright matrix: 10 passing tests.
 - Workspace matrix covers Markdown, PDF, malformed PDF, DOCX, XLSX, PPTX,
   unknown files, images, browser navigation, blocked-frame fallback, restart,
   and keyboard close.
 - Packaged native screenshots were captured with secrets masked.
+- Packaged `Buzz Dev` exposed labelled controls through macOS accessibility.
+  Keyboard traversal moved in order from `Join a community` to
+  `Create a community` to `I already have a community`, and reverse traversal
+  returned to `Create a community`. Return activated the focused control.
 - The ASV application-design verifier does not support macOS/Tauri.
-- Named human keyboard, accessibility, and visual acceptance remains pending.
+- Named human visual acceptance remains pending; the agent-run keyboard and
+  accessibility inspection is not represented as human acceptance.
+
+Repository gate status:
+
+- Workspace Rust formatting and warning-denied clippy passed.
+- Desktop checks, native formatting/clippy/check/tests, desktop build, web
+  checks, and web build passed.
+- Unit targets passed: `buzz-core` 232, `buzz-auth` 45, `buzz-db` 94 with
+  151 database-dependent tests ignored, `buzz-conformance` 22, and
+  `buzz-push-gateway` 15 with six Postgres-dependent tests ignored.
+- `just ci` is not represented as fully green. It reached the unchanged mobile
+  gate, where Hermit required a new 2,145,610,346-byte Flutter 3.41.7 SDK
+  download before `dart format`, `flutter analyze`, or `flutter test` could
+  start. The direct and checksum-verified remote-assisted fetches were stopped
+  after proving the link was bandwidth-bound; no mobile result was inferred.
 
 ## Docker and local stack
 
 - Docker Desktop ARM64 4.84.0 was downloaded from Docker's official endpoint.
 - The application passed macOS code-signature and Gatekeeper validation.
-- First-launch configuration, password authorization, and license acceptance
-  remain a human action.
-- Compose services, migrations, relay health, and restart recovery are not
-  marked passed until Docker's engine is running.
+- Charles completed Docker's first-launch configuration, password
+  authorization, and license acceptance.
+- Docker Engine 29.6.2 is running with the `overlayfs` storage driver.
+- The task runner now locates Docker Desktop's bundled CLI on macOS, so the
+  documented `just` commands do not depend on an optional global symlink.
+- `just setup` completed against the persistent development Compose project.
+- Postgres, Redis, Keycloak, MinIO, Prometheus, and Adminer recovered healthy.
+  Keycloak uses its supported bootstrap variables and the management-port
+  readiness endpoint.
+- Every published development-service port is restricted to `127.0.0.1`.
+- All 26 migrations applied successfully; the seeded local-only community has
+  four loopback aliases and no tailnet address.
+- `just local-stack-verify --with-relay` passed dependency health, migration
+  state `26:26`, relay health/readiness, and an HTTP `101` WebSocket upgrade.
+- `just local-stack-restart-proof` passed after adding a bounded health wait.
+  A full Docker Desktop stop/start also preserved the same migration state,
+  community count, named volumes, and relay readiness after restart.
+- A post-restart logical backup was written at
+  `build/local-stack-backups/20260730T080226Z` with directory mode `0700`;
+  its database and migration-ledger checksums verified.
+- Docker's ignored `NetworkType` experiment was removed before the recovery
+  proof. The engine still reports `overlayfs`.
+- The packaged desktop has not yet joined the local relay because the Mac
+  locked before that native step. Local desktop connection and the
+  `ASV Buzz Dev` relay-local display name remain pending.
 
 ## Jarvis rotation
 
