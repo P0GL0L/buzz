@@ -35,6 +35,7 @@ unsupported-format state.
 
 Phase-one rendered formats:
 
+- images
 - PDF
 - Markdown
 - plain text and source text
@@ -96,6 +97,7 @@ automation bridge with observable navigation state and scoped agent authority.
 ## Acceptance targets for this slice
 
 - A PDF file card opens the right-side reader and can still be downloaded.
+- An image context menu can open the original in the right-side reader.
 - A Markdown or text file renders readable content in the reader.
 - An unsupported Office file opens an honest fallback state.
 - A normal HTTP(S) message link can be opened in the Buzz browser from its
@@ -103,3 +105,29 @@ automation bridge with observable navigation state and scoped agent authority.
 - Reader and browser states are keyboard-closeable and expose useful labels.
 - Automated tests cover resource classification, URL normalization, file
   metadata formatting, and context-menu activation of the browser panel.
+
+## Native QA evidence boundary
+
+`just desktop-native-qa-preflight` must report the
+`xyz.block.buzz.app.dev` bundle and the `buzz-desktop-dev.main` keyring service
+before a main-checkout launch. `scripts/desktop-native-qa.sh snapshot LABEL`
+records content hashes for the production support directory and nest file,
+keyring metadata hashes, and only a one-way digest of the development identity.
+It never prints or stores a secret.
+
+Capture one snapshot before the first native launch and one after each of two
+clean restarts. `scripts/desktop-native-qa.sh compare restart-1 restart-2` proves
+that the development identity digest persisted and that production support,
+production keyring metadata, and the production nest digest did not change.
+
+The evidence lanes remain independent:
+
+1. `just desktop-native-qa-web` — deterministic browser-mock state coverage
+   and screenshots.
+2. Tauri unit/smoke results — native bridge and platform behavior.
+3. Native visual inspection — the real `Buzz Dev` window on macOS.
+4. Human on-device acceptance — a named human verifies keyboard flow,
+   accessibility labels, window layout, and the two-restart identity result.
+
+The current ADI verifier has no macOS/Tauri platform fragment. This gate records
+that limitation and must not convert it into an automated ADI pass.

@@ -361,6 +361,34 @@ desktop-screenshot *ARGS:
     fi
     node tests/helpers/screenshot.mjs {{ARGS}}
 
+# Verify and fingerprint the isolated native macOS development lane.
+desktop-native-qa-preflight:
+    ./scripts/desktop-native-qa.sh preflight
+
+# Guard the main-checkout/worktree classifier against relative git-dir drift.
+desktop-instance-env-test:
+    ./scripts/test-instance-env.sh
+
+# Run the deterministic browser-mock portion of the native workspace matrix.
+# This is web evidence only; native Tauri acceptance remains a separate gate.
+desktop-native-qa-web:
+    pnpm -C {{desktop_dir}} build:e2e
+    cd {{desktop_dir}} && pnpm exec playwright test --project=smoke workspace-native-qa.spec.ts
+
+# Verify every containerized dependency, migration state, and (optionally) the
+# host relay without changing local data.
+local-stack-verify *ARGS:
+    ./scripts/verify-local-stack.sh {{ARGS}}
+
+# Create a recoverable database backup before destructive schema experiments.
+local-stack-backup:
+    ./scripts/backup-local-stack.sh
+
+# Prove that persistent Compose services recover without deleting volumes.
+local-stack-restart-proof:
+    docker compose restart
+    ./scripts/verify-local-stack.sh
+
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 # Start the relay server (auto-starts Docker services if needed)
@@ -491,6 +519,10 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     source ../scripts/instance-env.sh
     INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
     export BUZZ_DEV_KEYRING_SERVICE="buzz-desktop-dev.${BUZZ_INSTANCE_SLUG:-main}"
+    # Standalone is the identity-isolation lane. It must create and retain its
+    # own key; importing a production or legacy dev key is intentionally
+    # disabled for the lifetime of this process.
+    export BUZZ_ISOLATED_DEV_IDENTITY=1
     if [[ -n "{{fresh}}" ]]; then
         ../scripts/reset-desktop-standalone-state.sh "$INSTANCE_ID" "$BUZZ_DEV_KEYRING_SERVICE"
     fi

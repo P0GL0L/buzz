@@ -1,4 +1,9 @@
-export type ArtifactPreviewKind = "markdown" | "pdf" | "text" | "unsupported";
+export type ArtifactPreviewKind =
+  | "image"
+  | "markdown"
+  | "pdf"
+  | "text"
+  | "unsupported";
 
 export type ArtifactWorkspaceResource = {
   kind: "artifact";
@@ -19,6 +24,7 @@ export type WorkspaceResource =
   | BrowserWorkspaceResource;
 
 const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown"];
+const IMAGE_EXTENSIONS = [".avif", ".gif", ".jpeg", ".jpg", ".png", ".webp"];
 const TEXT_EXTENSIONS = [
   ".csv",
   ".json",
@@ -42,6 +48,12 @@ export function classifyArtifactPreview({
 
   if (normalizedMime === "application/pdf" || /\.pdf$/i.test(filename)) {
     return "pdf";
+  }
+  if (
+    normalizedMime?.startsWith("image/") ||
+    hasExtension(filename, IMAGE_EXTENSIONS)
+  ) {
+    return "image";
   }
   if (
     normalizedMime === "text/markdown" ||

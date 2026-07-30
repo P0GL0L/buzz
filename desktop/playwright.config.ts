@@ -54,6 +54,7 @@ export default defineConfig({
         "**/doctor-cta-screenshots.spec.ts",
         "**/pubkey-display-screenshots.spec.ts",
         "**/file-attachment.spec.ts",
+        "**/workspace-native-qa.spec.ts",
         "**/image-attachment-gallery.spec.ts",
         "**/composer-image-draw.spec.ts",
         "**/video-attachment.spec.ts",

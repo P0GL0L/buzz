@@ -194,12 +194,34 @@ pub fn get_nsec(state: State<'_, AppState>) -> Result<String, String> {
         .map_err(|error| format!("encode nsec: {error}"))
 }
 
+fn identity_import_is_disabled(
+    debug_build: bool,
+    keyring_service: &str,
+    isolated_mode: Option<&str>,
+) -> bool {
+    debug_build && (keyring_service.starts_with("buzz-desktop-dev.") || isolated_mode == Some("1"))
+}
+
 #[tauri::command]
 pub async fn import_identity(
     nsec: String,
     app_handle: tauri::AppHandle,
 ) -> Result<IdentityInfo, String> {
     tokio::task::spawn_blocking(move || {
+        // `desktop-standalone` is a deliberately isolated identity lane. It
+        // generates and persists its own key, and must never accept a key from
+        // production, an older development service, browser autofill, or stale
+        // onboarding state. Other dev workflows retain explicit import support.
+        if identity_import_is_disabled(
+            cfg!(debug_assertions),
+            crate::app_state::keyring_service(),
+            std::env::var("BUZZ_ISOLATED_DEV_IDENTITY").ok().as_deref(),
+        ) {
+            return Err(
+                "Identity import is disabled in isolated standalone development mode".to_string(),
+            );
+        }
+
         let trimmed = nsec.trim();
         let keys = Keys::parse(trimmed).map_err(|e| format!("Invalid private key: {e}"))?;
 
@@ -256,6 +278,31 @@ pub async fn import_identity(
     })
     .await
     .map_err(|e| format!("spawn_blocking failed: {e}"))?
+}
+
+#[cfg(test)]
+mod isolated_identity_tests {
+    use super::identity_import_is_disabled;
+
+    #[test]
+    fn standalone_debug_mode_disables_identity_import() {
+        assert!(identity_import_is_disabled(
+            true,
+            "buzz-desktop-dev.main",
+            None
+        ));
+        assert!(identity_import_is_disabled(
+            true,
+            "buzz-desktop-dev",
+            Some("1")
+        ));
+        assert!(!identity_import_is_disabled(true, "buzz-desktop-dev", None));
+        assert!(!identity_import_is_disabled(
+            false,
+            "buzz-desktop-dev.main",
+            Some("1")
+        ));
+    }
 }
 
 /// Make the current ephemeral identity durable by persisting it to the OS

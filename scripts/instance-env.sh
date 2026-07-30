@@ -25,7 +25,7 @@ if [[ "${BUZZ_RESET_WEBVIEW_STATE:-0}" == "1" ]]; then
     DEV_URL="${DEV_URL}?resetDevState=1"
 fi
 
-BUZZ_TAURI_CONFIG="{\"build\":{\"devUrl\":\"${DEV_URL}\",\"beforeDevCommand\":\"exec ./node_modules/.bin/vite --port ${BUZZ_VITE_PORT} --strictPort\"},\"identifier\":\"xyz.block.buzz.app.dev\",\"productName\":\"Buzz Dev\"}"
+BUZZ_TAURI_CONFIG="{\"build\":{\"devUrl\":\"${DEV_URL}\",\"beforeDevCommand\":\"exec ./node_modules/.bin/vite --port ${BUZZ_VITE_PORT} --strictPort\"},\"identifier\":\"xyz.block.buzz.app.dev\",\"productName\":\"Buzz Dev\",\"bundle\":{\"macOS\":{\"infoPlist\":\"Info.dev.plist\"}}}"
 unset VITE_DEV_BRANCH
 
 # In worktrees, extract a label from the branch name and derive a unique app
@@ -35,8 +35,12 @@ unset VITE_DEV_BRANCH
 # working tree these are identical; in any worktree (whether under .worktrees/,
 # .claude/worktrees/, or elsewhere on disk) they differ.
 if git rev-parse --is-inside-work-tree &>/dev/null; then
-    GIT_DIR=$(git rev-parse --git-dir)
-    GIT_COMMON_DIR=$(git rev-parse --git-common-dir 2>/dev/null)
+    # Compare canonical absolute paths. Relative spellings differ when this
+    # file is sourced from `desktop/` (`../.git`) even in the main checkout,
+    # which previously misclassified the main tree as a worktree and silently
+    # selected a different bundle/keyring identity.
+    GIT_DIR=$(git rev-parse --path-format=absolute --git-dir)
+    GIT_COMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)
     if [[ -n "$GIT_COMMON_DIR" && "$GIT_DIR" != "$GIT_COMMON_DIR" ]]; then
         BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
         export BUZZ_WORKTREE_LABEL="${BRANCH_NAME##*/}"
@@ -89,7 +93,7 @@ if git rev-parse --is-inside-work-tree &>/dev/null; then
         if swift "$GENERATE_DEV_ICON" "$BASE_ICON" "$DEV_ICON" "$BUZZ_WORKTREE_LABEL"; then
             echo "🌳 Worktree: ${BUZZ_WORKTREE_LABEL}"
             export VITE_DEV_BRANCH="$BUZZ_WORKTREE_LABEL"
-            BUZZ_TAURI_CONFIG="{\"build\":{\"devUrl\":\"${DEV_URL}\",\"beforeDevCommand\":\"exec ./node_modules/.bin/vite --port ${BUZZ_VITE_PORT} --strictPort\"},\"identifier\":\"xyz.block.buzz.app.dev.${BUZZ_INSTANCE_SLUG}\",\"productName\":\"Buzz Dev (${BUZZ_WORKTREE_LABEL})\",\"bundle\":{\"icon\":[\"$DEV_ICON\"]}}"
+            BUZZ_TAURI_CONFIG="{\"build\":{\"devUrl\":\"${DEV_URL}\",\"beforeDevCommand\":\"exec ./node_modules/.bin/vite --port ${BUZZ_VITE_PORT} --strictPort\"},\"identifier\":\"xyz.block.buzz.app.dev.${BUZZ_INSTANCE_SLUG}\",\"productName\":\"Buzz Dev (${BUZZ_WORKTREE_LABEL})\",\"bundle\":{\"icon\":[\"$DEV_ICON\"],\"macOS\":{\"infoPlist\":\"Info.dev.plist\"}}}"
         fi
     fi
 fi

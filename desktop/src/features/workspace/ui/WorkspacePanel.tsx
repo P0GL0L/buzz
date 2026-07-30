@@ -36,6 +36,10 @@ type ArtifactLoadState =
 
 function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
   const previewKind = classifyArtifactPreview(resource);
+  const imageMime =
+    previewKind === "image" && resource.mime?.startsWith("image/")
+      ? resource.mime
+      : "application/octet-stream";
   const [state, setState] = React.useState<ArtifactLoadState>({
     phase: previewKind === "unsupported" ? "idle" : "loading",
   });
@@ -55,13 +59,24 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
         if (!active) return;
 
         if (previewKind === "pdf") {
+          const signature = new TextDecoder("ascii").decode(bytes.slice(0, 5));
+          if (signature !== "%PDF-") {
+            throw new Error("This file does not contain a valid PDF header.");
+          }
           const blob = new Blob([bytes], { type: "application/pdf" });
           blobUrl = URL.createObjectURL(blob);
           setState({ phase: "ready", blobUrl });
           return;
         }
 
-        const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+        if (previewKind === "image") {
+          const blob = new Blob([bytes], { type: imageMime });
+          blobUrl = URL.createObjectURL(blob);
+          setState({ phase: "ready", blobUrl });
+          return;
+        }
+
+        const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
         setState({ phase: "ready", text });
       })
       .catch((error: unknown) => {
@@ -77,7 +92,7 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
       active = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [previewKind, resource.url]);
+  }, [imageMime, previewKind, resource.url]);
 
   if (previewKind === "unsupported") {
     return (
@@ -91,8 +106,8 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
         <div>
           <h2 className="text-base font-semibold">Preview not available yet</h2>
           <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-            This first reader supports PDF, Markdown, JSON, CSV, and plain text.
-            Download the original to open this format in its native app.
+            This reader supports images, PDF, Markdown, JSON, CSV, and plain
+            text. Download the original to open this format in its native app.
           </p>
         </div>
       </div>
@@ -110,7 +125,10 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
 
   if (state.phase === "error") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+      <div
+        className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center"
+        data-testid="workspace-artifact-error"
+      >
         <h2 className="text-base font-semibold">Couldn’t open this preview</h2>
         <p className="max-w-sm text-sm text-muted-foreground">
           {state.message}
@@ -127,6 +145,21 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
         src={state.blobUrl}
         title={`Preview of ${resource.filename}`}
       />
+    );
+  }
+
+  if (previewKind === "image" && state.blobUrl) {
+    return (
+      <div
+        className="flex h-full items-center justify-center overflow-auto bg-muted/20 p-5"
+        data-testid="workspace-image-preview"
+      >
+        <img
+          alt={`Preview of ${resource.filename}`}
+          className="max-h-full max-w-full object-contain"
+          src={state.blobUrl}
+        />
+      </div>
     );
   }
 
@@ -296,8 +329,9 @@ export function WorkspacePanel({
       event.preventDefault();
       onClose();
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
   }, [onClose]);
 
   return (

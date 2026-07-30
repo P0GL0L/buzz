@@ -1,4 +1,9 @@
 {
   "identifier": "xyz.block.buzz.app.dev",
-  "productName": "Buzz Dev"
+  "productName": "Buzz Dev",
+  "bundle": {
+    "macOS": {
+      "infoPlist": "Info.dev.plist"
+    }
+  }
 }

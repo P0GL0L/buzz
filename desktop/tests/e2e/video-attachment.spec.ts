@@ -623,7 +623,9 @@ test("video upload previews use poster frames and inline videos open review mode
   // from auto-scrolling. The virtualized row can therefore remain outside
   // the DOM; the unread pill is the stable evidence that the live event was
   // accepted and triggered the timeline update.
-  await expect(page.getByRole("button", { name: "1 new message" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "1 new message" }),
+  ).toBeVisible();
   await expect(commentBox).toHaveText("Second pass note");
   await expect(commentBox).toBeFocused();
   await expect(page.getByTestId("video-review-composer-timecode")).toHaveText(

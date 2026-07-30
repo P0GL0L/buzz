@@ -13,6 +13,7 @@ import { toast } from "sonner";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { requestOpenSnapshotImport } from "@/features/agents/openSnapshotImportFromUrlEvent";
+import { openImageInWorkspace } from "@/features/workspace/lib/openImageInWorkspace";
 import { workspaceLinkMenuItems } from "@/features/workspace/lib/workspaceLinkMenu";
 import {
   parseMessageLink,
@@ -1182,7 +1183,6 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
     },
     [],
   );
-
   return (
     <>
       <button
@@ -1222,6 +1222,10 @@ function ImageBlock({ alt, dim, resolvedSrc, src, thumbSrc }: ImageBlockProps) {
         <MediaContextMenu
           dataAttributes={["data-image-context-menu"]}
           items={[
+            {
+              label: "Open image in workspace",
+              onSelect: () => openImageInWorkspace(src, alt),
+            },
             { label: "Copy image", onSelect: () => handleCopyImage(src) },
             { label: "Download image", onSelect: () => handleDownload(src) },
           ]}

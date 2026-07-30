@@ -30,6 +30,17 @@ test("classifyArtifactPreview distinguishes markdown and readable text", () => {
   assert.equal(classifyArtifactPreview({ filename: "ledger.csv" }), "text");
 });
 
+test("classifyArtifactPreview recognizes images by MIME or extension", () => {
+  assert.equal(
+    classifyArtifactPreview({
+      filename: "capture.bin",
+      mime: "image/png",
+    }),
+    "image",
+  );
+  assert.equal(classifyArtifactPreview({ filename: "capture.WEBP" }), "image");
+});
+
 test("classifyArtifactPreview keeps Office files honest", () => {
   assert.equal(
     classifyArtifactPreview({
