@@ -11,6 +11,7 @@ export type ArtifactPreviewKind =
 export type ArtifactWorkspaceResource = {
   kind: "artifact";
   url: string;
+  localPath?: string;
   filename: string;
   mime?: string;
   size?: number;

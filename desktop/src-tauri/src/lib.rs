@@ -358,6 +358,7 @@ pub fn run() {
         .manage(BuilderlabSession::default())
         .manage(BuilderlabLogin::default())
         .manage(commands::pairing::PairingHandle::new())
+        .manage(WorkspaceBrowserRuntime::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
 
@@ -755,6 +756,23 @@ pub fn run() {
             download_file,
             fetch_media_bytes,
             preview_office_artifact,
+            open_workspace_browser,
+            update_workspace_browser_bounds,
+            navigate_workspace_browser,
+            workspace_browser_back,
+            workspace_browser_forward,
+            reload_workspace_browser,
+            stop_workspace_browser,
+            close_workspace_browser,
+            clear_workspace_browser_session,
+            clear_workspace_browser_profile,
+            get_workspace_browser_state,
+            extract_workspace_browser_page,
+            click_workspace_browser,
+            type_workspace_browser,
+            scroll_workspace_browser,
+            capture_workspace_browser,
+            fetch_workspace_browser_download,
             copy_image_to_clipboard,
             copy_text_to_clipboard,
             fetch_snapshot_bytes,

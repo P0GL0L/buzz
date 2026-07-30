@@ -83,8 +83,15 @@ manual address submission, a private local history stack, reload, and an
 open-external fallback. Sites can refuse embedding; that refusal is an
 expected state, not a successful browser claim.
 
-The later browser-control milestone must use a native child webview or browser
-automation bridge with observable navigation state and scoped agent authority.
+The browser-control milestone now uses a Tauri child webview aligned to the
+workspace content region. It has a Buzz Dev-only persistent data store,
+bounded HTTP(S)-only navigation, observable history/loading/title state,
+downloads routed back into the artifact reader, DOM/text extraction, selector
+click/type, scrolling, immediate stop and clear controls, an active-controller
+indicator, and a redacted local audit stream. The iframe remains the explicit
+fallback when the native surface is unavailable. Screenshot requests currently
+return a structured unsupported result because the safe cross-platform Tauri
+webview API does not expose page capture; they do not claim success.
 
 ## Budgets and defaults
 

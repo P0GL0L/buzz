@@ -2,11 +2,14 @@ mod fidelity;
 mod model;
 mod parser;
 
+use std::path::PathBuf;
+
 use tauri::State;
 
 use self::model::{OfficeFidelity, OfficeFormat, OfficePreview};
 use crate::app_state::AppState;
 use crate::commands::media_download::{fetch_blob_bytes_with_cap, validate_download_url};
+use crate::commands::workspace_browser::read_workspace_download;
 use crate::relay::relay_api_base_url_with_override;
 
 const MAX_OFFICE_DOWNLOAD_BYTES: u64 = 20 * 1024 * 1024;
@@ -65,16 +68,22 @@ fn build_preview(
 #[tauri::command]
 pub async fn preview_office_artifact(
     url: String,
+    local_path: Option<PathBuf>,
     filename: String,
     mime: Option<String>,
     include_fidelity: Option<bool>,
+    app: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<OfficePreview, String> {
     let format = OfficeFormat::from_filename(&filename)?;
     validate_declared_mime(format, mime.as_deref())?;
-    let relay_base = relay_api_base_url_with_override(&state);
-    validate_download_url(&url, &relay_base)?;
-    let bytes = fetch_blob_bytes_with_cap(&url, &state, MAX_OFFICE_DOWNLOAD_BYTES).await?;
+    let bytes = if let Some(path) = local_path {
+        read_workspace_download(&app, &path, MAX_OFFICE_DOWNLOAD_BYTES)?
+    } else {
+        let relay_base = relay_api_base_url_with_override(&state);
+        validate_download_url(&url, &relay_base)?;
+        fetch_blob_bytes_with_cap(&url, &state, MAX_OFFICE_DOWNLOAD_BYTES).await?
+    };
     tokio::task::spawn_blocking(move || {
         build_preview(
             bytes,

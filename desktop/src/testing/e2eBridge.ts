@@ -11263,6 +11263,62 @@ export function maybeInstallE2eTauriMocks() {
         }
         throw new Error("Unsupported Office fixture");
       }
+      case "open_workspace_browser":
+        // Browser-based E2E cannot host a Tauri child webview. Returning the
+        // explicit fallback mode exercises the retained sandboxed iframe path.
+        return {
+          version: 1,
+          mode: "fallback",
+          currentUrl: (payload as { url: string }).url,
+          title: null,
+          loading: false,
+          activeAgent: null,
+          history: [(payload as { url: string }).url],
+          historyIndex: 0,
+          actions: [],
+          error: null,
+        };
+      case "get_workspace_browser_state":
+        return {
+          version: 1,
+          mode: "fallback",
+          currentUrl: null,
+          title: null,
+          loading: false,
+          activeAgent: null,
+          history: [],
+          historyIndex: 0,
+          actions: [],
+          error: null,
+        };
+      case "update_workspace_browser_bounds":
+      case "navigate_workspace_browser":
+      case "workspace_browser_back":
+      case "workspace_browser_forward":
+      case "reload_workspace_browser":
+      case "stop_workspace_browser":
+      case "close_workspace_browser":
+      case "clear_workspace_browser_session":
+      case "clear_workspace_browser_profile":
+      case "click_workspace_browser":
+      case "type_workspace_browser":
+      case "scroll_workspace_browser":
+        return null;
+      case "extract_workspace_browser_page":
+        return {
+          version: 1,
+          url: "https://example.com/",
+          title: "Example",
+          text: "Example page extraction",
+          links: [],
+          truncated: false,
+        };
+      case "capture_workspace_browser":
+        return {
+          version: 1,
+          completionState: "unsupported",
+          reason: "Native screenshots are not available in browser-mock E2E.",
+        };
       case "fetch_snapshot_bytes": {
         // The real command fetches + validates a snapshot attachment in memory
         // (size cap, SHA-256, decode). In E2E the bridge returns a minimal

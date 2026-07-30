@@ -2,10 +2,12 @@ import * as React from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Globe2,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 
+import { requestOpenWorkspaceResource } from "@/features/workspace/openWorkspaceResourceEvent";
 import { isMacPlatform } from "@/shared/lib/platform";
 import { useIsFullscreen } from "@/shared/lib/useIsFullscreen";
 import { Button } from "@/shared/ui/button";
@@ -129,6 +131,22 @@ export function AppTopChrome({
           variant="ghost"
         >
           <ChevronRight />
+        </Button>
+        <Button
+          aria-label="Open Buzz browser"
+          className={TOP_CHROME_ICON_BUTTON_CLASS}
+          data-testid="global-workspace-browser"
+          onClick={() =>
+            requestOpenWorkspaceResource({
+              kind: "browser",
+              url: "https://www.google.com/",
+              title: "Buzz browser",
+            })
+          }
+          size="icon"
+          variant="ghost"
+        >
+          <Globe2 />
         </Button>
       </div>
     </div>

@@ -88,6 +88,25 @@ provider-account ownership gate; it is not represented as revoked.
 - Named human visual acceptance remains pending; the agent-run keyboard and
   accessibility inspection is not represented as human acceptance.
 
+Native workspace browser:
+
+- The right-side workspace now hosts a Tauri child webview with an isolated
+  persistent Buzz Dev profile and an iframe fallback.
+- Navigation is limited to HTTP(S). History, title, loading state, downloads,
+  popups, page extraction, click/type/scroll actions, and clear controls are
+  represented by versioned native commands and events.
+- Browser downloads are restricted to the app-owned download directory and can
+  be opened immediately by the artifact reader. Local preview reads prove the
+  canonical path remains beneath that directory and enforce format-specific
+  byte caps.
+- The action stream redacts credentials, fragments, and sensitive query keys.
+  It records the active controller without recording page input text.
+- Native screenshot requests currently return a structured `unsupported`
+  result. No success is claimed until a safe implementation is present.
+- Focused Tauri tests, clippy with warnings denied, TypeScript typecheck, and
+  the four-case workspace Playwright gate passed. Real-window browser layout
+  and named-human acceptance remain separate gates.
+
 Repository gate status:
 
 - Workspace Rust formatting and warning-denied clippy passed.

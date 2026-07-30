@@ -1,16 +1,5 @@
 import * as React from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Download,
-  ExternalLink,
-  FileQuestion,
-  Globe2,
-  Loader2,
-  RefreshCw,
-  X,
-} from "lucide-react";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { Download, FileQuestion, Globe2, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { invokeTauri } from "@/shared/api/tauri";
@@ -24,9 +13,9 @@ import {
   formatWorkspaceFileSize,
   normalizeBrowserUrl,
   type ArtifactWorkspaceResource,
-  type BrowserWorkspaceResource,
   type WorkspaceResource,
 } from "../lib/workspaceResource";
+import { NativeBrowserReader } from "./NativeBrowserReader";
 import { OfficeArtifactReader } from "./OfficeArtifactReader";
 
 type ArtifactLoadState =
@@ -72,7 +61,13 @@ function BasicArtifactReader({
     let blobUrl: string | undefined;
     setState({ phase: "loading" });
 
-    void fetchMediaBytes(resource.url)
+    void (
+      resource.localPath
+        ? invokeTauri<ArrayBuffer>("fetch_workspace_browser_download", {
+            path: resource.localPath,
+          })
+        : fetchMediaBytes(resource.url)
+    )
       .then((bytes) => {
         if (!active) return;
 
@@ -110,7 +105,7 @@ function BasicArtifactReader({
       active = false;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [imageMime, previewKind, resource.url]);
+  }, [imageMime, previewKind, resource.localPath, resource.url]);
 
   if (previewKind === "unsupported") {
     return (
@@ -199,123 +194,6 @@ function BasicArtifactReader({
     >
       {state.text ?? ""}
     </pre>
-  );
-}
-
-function BrowserReader({ resource }: { resource: BrowserWorkspaceResource }) {
-  const initialUrl =
-    normalizeBrowserUrl(resource.url) ?? "https://example.com/";
-  const [history, setHistory] = React.useState([initialUrl]);
-  const [historyIndex, setHistoryIndex] = React.useState(0);
-  const [input, setInput] = React.useState(initialUrl);
-  const [reloadKey, setReloadKey] = React.useState(0);
-  const currentUrl = history[historyIndex] ?? initialUrl;
-
-  React.useEffect(() => {
-    const nextUrl = normalizeBrowserUrl(resource.url);
-    if (!nextUrl) return;
-    setHistory([nextUrl]);
-    setHistoryIndex(0);
-    setInput(nextUrl);
-  }, [resource.url]);
-
-  function navigate(value: string) {
-    const normalized = normalizeBrowserUrl(value);
-    if (!normalized) {
-      toast.error("Enter an HTTP or HTTPS address");
-      return;
-    }
-    setHistory((current) => [
-      ...current.slice(0, historyIndex + 1),
-      normalized,
-    ]);
-    setHistoryIndex((current) => current + 1);
-    setInput(normalized);
-  }
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <form
-        className="flex shrink-0 items-center gap-1.5 border-b border-border/70 px-3 py-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          navigate(input);
-        }}
-      >
-        <Button
-          aria-label="Back"
-          disabled={historyIndex === 0}
-          onClick={() => {
-            const nextIndex = Math.max(0, historyIndex - 1);
-            setHistoryIndex(nextIndex);
-            setInput(history[nextIndex] ?? input);
-          }}
-          size="icon-xs"
-          type="button"
-          variant="ghost"
-        >
-          <ArrowLeft />
-        </Button>
-        <Button
-          aria-label="Forward"
-          disabled={historyIndex >= history.length - 1}
-          onClick={() => {
-            const nextIndex = Math.min(history.length - 1, historyIndex + 1);
-            setHistoryIndex(nextIndex);
-            setInput(history[nextIndex] ?? input);
-          }}
-          size="icon-xs"
-          type="button"
-          variant="ghost"
-        >
-          <ArrowRight />
-        </Button>
-        <Button
-          aria-label="Reload"
-          onClick={() => setReloadKey((current) => current + 1)}
-          size="icon-xs"
-          type="button"
-          variant="ghost"
-        >
-          <RefreshCw />
-        </Button>
-        <input
-          aria-label="Browser address"
-          className="h-8 min-w-0 flex-1 rounded-lg border border-input/50 bg-muted/35 px-3 text-sm outline-hidden focus:border-ring focus:ring-1 focus:ring-ring"
-          onChange={(event) => setInput(event.target.value)}
-          spellCheck={false}
-          value={input}
-        />
-        <Button
-          aria-label="Open in system browser"
-          onClick={() => {
-            void openUrl(currentUrl).catch(() =>
-              toast.error("Failed to open link"),
-            );
-          }}
-          size="icon-xs"
-          type="button"
-          variant="ghost"
-        >
-          <ExternalLink />
-        </Button>
-      </form>
-      <div className="relative min-h-0 flex-1 bg-background">
-        <iframe
-          className="h-full w-full border-0 bg-background"
-          data-testid="workspace-browser-frame"
-          key={`${currentUrl}:${reloadKey}`}
-          referrerPolicy="no-referrer"
-          sandbox="allow-forms allow-popups allow-scripts"
-          src={currentUrl}
-          title={resource.title ?? `Buzz browser: ${currentUrl}`}
-        />
-        <p className="pointer-events-none absolute inset-x-3 bottom-3 rounded-lg bg-background/90 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur">
-          Some sites block embedded browsing. Use the external-browser button
-          when a page refuses to load.
-        </p>
-      </div>
-    </div>
   );
 }
 
@@ -413,7 +291,7 @@ export function WorkspacePanel({
           {resource.kind === "artifact" ? (
             <ArtifactReader resource={resource} />
           ) : (
-            <BrowserReader resource={resource} />
+            <NativeBrowserReader resource={resource} />
           )}
         </div>
       </aside>

@@ -125,12 +125,12 @@ function WorksheetView({
                   key={`${sheet.name}:${cell.reference}`}
                   title={cell.formula ? `Formula: ${cell.formula}` : undefined}
                 >
-                  <span className="mb-1 block font-mono text-[10px] text-muted-foreground">
+                  <span className="mb-1 block font-mono text-3xs text-muted-foreground">
                     {cell.reference}
                   </span>
                   <span>{cell.value}</span>
                   {cell.formula ? (
-                    <code className="mt-1 block text-[10px] text-muted-foreground">
+                    <code className="mt-1 block text-3xs text-muted-foreground">
                       ={cell.formula}
                     </code>
                   ) : null}
@@ -187,6 +187,7 @@ export function OfficeArtifactReader({
     setState({ phase: "loading" });
     void invokeTauri<OfficePreview>("preview_office_artifact", {
       url: resource.url,
+      localPath: resource.localPath ?? null,
       filename: resource.filename,
       mime: resource.mime ?? null,
       includeFidelity: true,
@@ -209,7 +210,7 @@ export function OfficeArtifactReader({
     return () => {
       active = false;
     };
-  }, [resource.filename, resource.mime, resource.url]);
+  }, [resource.filename, resource.localPath, resource.mime, resource.url]);
 
   if (state.phase === "loading") {
     return (
@@ -321,7 +322,7 @@ export function OfficeArtifactReader({
         >
           <ZoomOut />
         </Button>
-        <span className="w-10 text-center text-[10px] text-muted-foreground">
+        <span className="w-10 text-center text-3xs text-muted-foreground">
           {Math.round(zoom * 100)}%
         </span>
         <Button
