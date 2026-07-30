@@ -9,7 +9,13 @@ fn dev_keyring_service(runtime: Option<String>, compiled: Option<&str>) -> Strin
         .into_iter()
         .chain(compiled.map(str::to_owned))
         .find(|service| service.starts_with("buzz-desktop-dev."))
-        .unwrap_or_else(|| "buzz-desktop-dev".to_string())
+        // The canonical development checkout owns the `.main` scope. This
+        // fallback is intentionally scoped rather than the historical
+        // `buzz-desktop-dev` service so a debug bundle rebuilt and launched
+        // directly from Finder sees the same identity as `just
+        // desktop-standalone`, even when it no longer inherits the build
+        // shell's environment.
+        .unwrap_or_else(|| "buzz-desktop-dev.main".to_string())
 }
 
 pub(crate) fn keyring_service() -> &'static str {
@@ -58,6 +64,11 @@ mod tests {
             dev_keyring_service(None, Some("buzz-desktop-dev.main")),
             "buzz-desktop-dev.main"
         );
+    }
+
+    #[test]
+    fn directly_built_debug_app_uses_canonical_main_scope() {
+        assert_eq!(dev_keyring_service(None, None), "buzz-desktop-dev.main");
     }
 
     #[test]
