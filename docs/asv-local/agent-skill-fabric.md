@@ -76,8 +76,11 @@ Instead, Buzz should maintain a provenance-bearing capability index:
 - Invocation owner: the agent/host that can actually run it
 - Sharing policy: private, team-indexed, or portable
 
-The registry schema for this fork lives in
-`docs/asv-local/skill-registry.schema.json`.
+The complete host-custodied schema lives in
+`docs/asv-local/skill-registry.schema.json`. The only shape permitted on a
+relay is `docs/asv-local/skill-registry-relay-safe.schema.json`; it omits local
+paths, exact hosts, connector details, permission evidence, content hashes,
+and verification evidence.
 
 Agents receive a small router skill that:
 
@@ -100,7 +103,35 @@ through their owning agent.
 - Inventory Jarvis on the Mac mini through the existing Hermes/Buzz gateway.
 - Inventory Cody on POGsAlien through its real host connection.
 - Deduplicate by source ID plus content hash.
-- Publish only metadata to Buzz.
+- Publish only the signed relay-safe projection to Buzz.
+
+The CLI treats discovery and execution readiness as separate facts:
+
+- `catalogued` — present in an optional or upstream catalogue only.
+- `installed` — present in a runtime-owned installed root, but not proven
+  callable.
+- `callable` — observed in a root that the named runtime currently exposes.
+- `degraded` — owned and installed, but a required runtime dependency is
+  failing.
+- `unreachable` — last-known inventory whose owning host cannot be verified.
+
+Only a non-expired `callable` observation is routable. Expired observations
+become `unknown`; they never silently remain available.
+
+Example local scan:
+
+```bash
+buzz skills scan \
+  --host vision-macbook \
+  --runtime codex \
+  --owner <VISION_AGENT_PUBKEY> \
+  --source callable:team-indexed:codex:$HOME/.codex/skills \
+  --source catalogued:private:hermes:$HOME/.hermes
+```
+
+The complete registry and relay-safe projection default to
+`~/.buzz-dev/skill-registry/`. Use `buzz skills validate`, `skills list`, and
+`skills show` locally before any publication.
 
 ### B. Private agent lab
 
@@ -112,11 +143,19 @@ through their owning agent.
 
 ### C. Skill routing
 
-- Add relay events for capability registry heads and observations.
-- Add `buzz-cli skills list`, `skills show`, and `skills route`.
+- Publish signed, searchable relay-safe registry chunks into the private room
+  with `buzz skills publish`. Publication validates a hard forbidden-field
+  denylist before sending.
+- Use `buzz skills list`, `skills show`, and `skills route`.
 - Add desktop registry/search UI.
 - Add a router prompt to managed-agent base context.
 - Preserve per-host authorization at invocation time.
+
+`buzz skills route` selects only a current routable observation, verifies the
+owning agent identity is a Nostr pubkey and current channel member, then emits
+a bounded `skill-route/v1` request. The request carries a UUID correlation ID,
+registry digest/revision, expected owner, skill ID, task bounds, and required
+evidence. It never contains the canonical entrypoint or host evidence.
 
 ### D. Portable skill synchronization
 
@@ -124,4 +163,3 @@ through their owning agent.
 - Add owner-reviewed publication.
 - Add version pinning and rollback.
 - Prove the same portable skill on two hosts before calling it shared.
-

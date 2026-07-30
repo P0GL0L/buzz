@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asv.local/buzz/skill-registry-relay-safe.schema.json",
+  "title": "ASV Buzz Relay-Safe Skill Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "generatedAt",
+    "registryDigest",
+    "registryRevision",
+    "registryVersion",
+    "skills",
+    "ttlSeconds"
+  ],
+  "properties": {
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "registryDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "registryRevision": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "registryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "ttlSeconds": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skill"
+      }
+    }
+  },
+  "$defs": {
+    "stringSet": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "abstractRequirements",
+        "availability",
+        "capabilities",
+        "displayName",
+        "installationState",
+        "observedAt",
+        "owningAgent",
+        "registryVersion",
+        "routable",
+        "runtimeClass",
+        "skillId"
+      ],
+      "properties": {
+        "abstractRequirements": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "availability": {
+          "enum": ["available", "degraded", "unavailable", "unknown"]
+        },
+        "capabilities": {
+          "$ref": "#/$defs/stringSet"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "installationState": {
+          "enum": [
+            "catalogued",
+            "installed",
+            "callable",
+            "degraded",
+            "unreachable"
+          ]
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "owningAgent": {
+          "type": "string",
+          "pattern": "^[0-9a-fA-F]{64}$"
+        },
+        "registryVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "routable": {
+          "type": "boolean"
+        },
+        "runtimeClass": {
+          "type": "string",
+          "minLength": 1
+        },
+        "skillId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+        }
+      }
+    }
+  }
+}
