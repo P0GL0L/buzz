@@ -93,6 +93,24 @@ fallback when the native surface is unavailable. Screenshot requests currently
 return a structured unsupported result because the safe cross-platform Tauri
 webview API does not expose page capture; they do not claim success.
 
+### Provider connections
+
+Settings → Agents includes a provider surface for xAI Grok, Google
+Antigravity, and Gemini CLI. It distinguishes installation, pending consent,
+verified, degraded, expired, and disconnected states. Connect and reconnect
+launch the provider's official interactive login in a visible terminal;
+disconnect disables Buzz routing without reading or deleting provider-owned
+OAuth credentials.
+
+Provider installations, settings, and runtime homes remain under the current
+Buzz Dev application-data directory. Runtime discovery may resolve only the
+allowlisted `agy` and `gemini` executables from that tree. Grok and Gemini
+agent processes receive app-scoped `GROK_HOME` and `GEMINI_CLI_HOME` values at
+spawn time, and agent definitions cannot override those keys. The relay, agent
+records, snapshots, audit logs, and provider status IPC contain no OAuth token.
+An installed binary is never represented as an authenticated or verified
+connection without a successful provider-owned consent and runtime proof.
+
 ## Budgets and defaults
 
 - No new global tab bar.

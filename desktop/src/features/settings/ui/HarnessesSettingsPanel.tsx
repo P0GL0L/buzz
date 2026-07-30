@@ -13,6 +13,7 @@ import { SectionHeader } from "@/shared/ui/PageHeader";
 
 import { HarnessCatalogDialog } from "./HarnessCatalogDialog";
 import { HarnessRow } from "./HarnessRow";
+import { ProviderConnectionsPanel } from "./ProviderConnectionsPanel";
 import { stableRowOrder, yourHarnessEntries } from "./harnessCatalogLogic";
 
 function GitBashCard({
@@ -136,6 +137,8 @@ export function HarnessesSettingsPanel() {
       />
 
       <div className="space-y-8">
+        <ProviderConnectionsPanel />
+
         {gitBashQuery.data ? (
           <section>
             <div className="mb-3 text-sm">

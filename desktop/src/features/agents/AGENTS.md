@@ -120,6 +120,12 @@ with a TypeScript lookup table or an id comparison in a component.
     validated configured relay authority. In particular, do not pass a
     runtime key's canonical `127.0.0.1` URL to network code when the selected
     community is keyed by `localhost`.
+12. **Provider credential homes are Buzz Dev-owned spawn metadata.** Grok and
+    Gemini agents always receive the app-scoped `GROK_HOME` or
+    `GEMINI_CLI_HOME` selected by Rust at spawn time. Those keys are reserved
+    from persona and agent overrides so a definition cannot silently fall back
+    to a provider-global credential profile. Provider status exposed over IPC
+    is non-secret metadata only; tokens remain in provider-owned storage.
 
 ## The tests that enforce this
 

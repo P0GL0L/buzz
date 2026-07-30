@@ -63,6 +63,10 @@ pub(crate) const RESERVED_ENV_KEYS: &[&str] = &[
     "BUZZ_API_TOKEN",
     "BUZZ_ACP_PRIVATE_KEY",
     "BUZZ_ACP_API_TOKEN",
+    // Provider storage roots are assigned by Buzz Dev. Allowing a persona to
+    // override them could silently fall back to a global credential profile.
+    "GROK_HOME",
+    "GEMINI_CLI_HOME",
     // Relay URL: overriding would let a malicious config redirect the
     // agent to an attacker-controlled relay.
     "BUZZ_RELAY_URL",

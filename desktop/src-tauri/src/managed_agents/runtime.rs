@@ -860,8 +860,8 @@ pub fn spawn_agent_child(
     for (key, value) in &descriptor.env {
         command.env(key, value);
     }
+    crate::commands::provider_connections::apply_runtime_env(app, effective_command, &mut command)?;
     configure_runtime_cli(&mut command, runtime_meta);
-
     // Buzz shared compute is stored as a native provider; derive the OpenAI-compatible
     // transport at spawn time and scrub any unrelated ambient OpenAI key.
     // Gate on `mesh_model_id` (derived from `effective_cfg.relay_mesh_model_id()`

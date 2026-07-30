@@ -39,11 +39,29 @@ function CursorMark({ className }: MarkProps) {
   );
 }
 
+/// Neutral sparkle used to distinguish the Gemini runtime without bundling a
+/// Google trademark asset.
+function GeminiMark({ className }: MarkProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+      role="img"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M12 1c.72 6.6 4.4 10.28 11 11-6.6.72-10.28 4.4-11 11C11.28 16.4 7.6 12.72 1 12 7.6 11.28 11.28 7.6 12 1Z" />
+    </svg>
+  );
+}
+
 /// Theme-adaptive inline marks, keyed by runtime/preset id. Consulted before
 /// the bitmap logo maps in `RuntimeIcon`. Codex deliberately has no entry:
 /// the OpenAI blossom was removed from simple-icons v16 at the vendor's
 /// request, so Codex renders RuntimeIcon's neutral terminal-glyph fallback.
 export const RUNTIME_MARKS: Record<string, React.FC<MarkProps>> = {
   cursor: CursorMark,
+  gemini: GeminiMark,
   goose: GooseMark,
 };

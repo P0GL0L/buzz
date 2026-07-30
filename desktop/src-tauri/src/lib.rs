@@ -361,6 +361,9 @@ pub fn run() {
         .manage(WorkspaceBrowserRuntime::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
+            if let Ok(data_dir) = app_handle.path().app_data_dir() {
+                crate::managed_agents::register_provider_root(data_dir.join("providers"));
+            }
 
             // ── Phase 2: boot-time sentinel wipe ──────────────────────────────
             // Must run before migrations and identity resolution so the wipe
@@ -756,6 +759,9 @@ pub fn run() {
             download_file,
             fetch_media_bytes,
             preview_office_artifact,
+            list_provider_connections,
+            connect_provider_connection,
+            disconnect_provider_connection,
             open_workspace_browser,
             update_workspace_browser_bounds,
             navigate_workspace_browser,

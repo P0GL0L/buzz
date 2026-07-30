@@ -561,10 +561,11 @@ fn resolve_cache() -> &'static std::sync::Mutex<std::collections::HashMap<String
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Resolve a command to an absolute path, caching results for the app lifetime.
-/// The cache eliminates redundant login-shell spawns when multiple agents share
-/// the same binaries (e.g. `npx`, `uvx`).
+/// Resolve a command to an absolute path, caching shared runtime lookups.
 pub fn resolve_command(command: &str) -> Option<PathBuf> {
+    if let Some(provider) = crate::managed_agents::provider_command_path(command) {
+        return Some(provider);
+    }
     if let Some(managed) = resolve_buzz_managed_command(command) {
         return Some(managed);
     }
@@ -1438,10 +1439,8 @@ pub(crate) fn discover_acp_runtime_availability(runtime_id: &str) -> Option<AcpA
 
 // ── Tier-2 preset harnesses ────────────────────────────────────────────────
 //
-// Static data for well-known ACP harnesses that have bundled logos and
-// verified command/args. PATH-probed at discovery time (Detected badge);
-// not editable or deletable by users. Logos are bundled assets referenced
-// by id in the frontend `RUNTIME_LOGOS` map.
+// Well-known ACP harnesses with verified command/args, PATH-probed at discovery;
+// not editable or deletable. Logos are keyed by id in `RUNTIME_LOGOS`.
 
 struct PresetHarness {
     id: &'static str,
@@ -1450,19 +1449,11 @@ struct PresetHarness {
     args: &'static [&'static str],
     install_instructions_url: &'static str,
     install_hint: &'static str,
-    /// Vendor CLI the ACP command wraps, when the preset is an adapter
-    /// (e.g. Amp's `amp-acp` wraps the separately-installed `amp` CLI).
-    /// Consulted only when the adapter is absent, so `AdapterMissing`
-    /// replaces the misleading `NotInstalled` when the CLI is present but
-    /// the adapter is not. Deliberately NOT fed through the builtins'
-    /// full `classify_runtime` predicate: that would flip
-    /// adapter-present/CLI-absent from today's `Available` to `CliMissing`
-    /// (unselectable), and presets carry a single flat `install_hint`, so
-    /// the `CliMissing` copy would tell the user to install the adapter
-    /// they already have. `None` when the command IS the vendor CLI.
+    /// Vendor CLI wrapped by an ACP adapter. Used only to distinguish an absent
+    /// adapter from an absent installation without changing adapter-present
+    /// availability. `None` when the command is the vendor CLI.
     underlying_cli: Option<&'static str>,
 }
-
 /// Build the catalog entry for one preset harness through an injectable
 /// resolver — the seam the preset loop consumes and tests bind.
 ///
@@ -1563,6 +1554,15 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         args: &["agent", "--always-approve", "stdio"],
         install_instructions_url: "https://build.x.ai/docs",
         install_hint: "Buzz talks to Grok Build through its CLI's agent stdio mode.",
+        underlying_cli: None,
+    },
+    PresetHarness {
+        id: "gemini",
+        label: "Gemini CLI",
+        command: "gemini",
+        args: &["--acp"],
+        install_instructions_url: "https://github.com/google-gemini/gemini-cli",
+        install_hint: "Buzz talks to Gemini CLI through its official ACP mode. Personal Google AI plans use the separate Antigravity adapter.",
         underlying_cli: None,
     },
     PresetHarness {

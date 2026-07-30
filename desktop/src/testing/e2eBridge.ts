@@ -10419,6 +10419,67 @@ export function maybeInstallE2eTauriMocks() {
         return activeConfig?.mock?.relayRequiresMembership ?? false;
       case "discover_acp_providers":
         return handleDiscoverAcpRuntimes(activeConfig);
+      case "list_provider_connections":
+        return [
+          {
+            version: 1,
+            providerId: "xai",
+            runtimeId: "grok",
+            label: "Grok Build",
+            authMethod: "oauth",
+            installState: "installed",
+            availability: "installed_unverified",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://build.x.ai/docs",
+          },
+          {
+            version: 1,
+            providerId: "google-personal",
+            runtimeId: "antigravity",
+            label: "Google Antigravity",
+            authMethod: "google-oauth",
+            installState: "installed",
+            availability: "pending_consent",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://antigravity.google/docs/cli/install",
+          },
+          {
+            version: 1,
+            providerId: "google-enterprise",
+            runtimeId: "gemini",
+            label: "Gemini CLI",
+            authMethod: "google-oauth-or-cloud",
+            installState: "not_installed",
+            availability: "not_installed",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://github.com/google-gemini/gemini-cli",
+          },
+        ];
+      case "connect_provider_connection":
+        return {
+          version: 1,
+          providerId: (payload as { providerId: string }).providerId,
+          launched: true,
+          status: "pending_consent",
+        };
+      case "disconnect_provider_connection":
+        return {
+          version: 1,
+          providerId: (payload as { providerId: string }).providerId,
+          status: "disconnected",
+        };
       case "save_custom_harness":
         return handleSaveCustomHarness(
           payload as Parameters<typeof handleSaveCustomHarness>[0],

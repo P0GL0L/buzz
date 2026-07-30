@@ -239,6 +239,27 @@ the mention preflight safely rejected the affected chunks.
 
 POGsAlien/Cody remains excluded.
 
+## Buzz Dev workspace extensions
+
+- The artifact workspace now classifies and opens bounded semantic DOCX, XLSX,
+  and PPTX previews in addition to Markdown, text, images, and PDF.
+- The native browser uses a Buzz Dev-scoped persistent webview profile, audited
+  agent actions, HTTP(S)-only navigation, bounded page extraction, and
+  artifact-routed downloads. Page capture remains an explicit unsupported
+  result pending a safe native capture API.
+- Settings → Agents now exposes non-secret connection records for Grok,
+  Antigravity, and Gemini CLI with installed, pending-consent, connected,
+  degraded, expired, and disconnected states.
+- Provider runtime homes and allowlisted app-owned binaries resolve under the
+  Buzz Dev application-data directory. Production Buzz and provider-global
+  credential profiles are not migration sources.
+- Rust check and warnings-denied Clippy passed for the provider boundary.
+  Desktop typecheck, file-size and text-scale checks passed. The focused
+  provider settings Playwright gate passed on isolated port `4192`.
+- Live Google and xAI connection proof remains pending provider-owned browser
+  consent and a real signed agent response; no installed runtime is described
+  as authenticated merely because its executable was found.
+
 ## Hosted status
 
 - Old Charles public key:
