@@ -25,8 +25,11 @@ just fresh=1 desktop-standalone
 ```
 
 `desktop-standalone` disables identity import, uses the scoped development
-keyring, and starts no relay or database. Capture a snapshot, quit, relaunch
-without `fresh=1`, capture a second snapshot, then compare:
+keyring, and starts no relay or database. Packaged debug applications embed the
+validated scope because a Finder launch does not inherit the build shell's
+environment; a valid runtime scope still takes precedence for `tauri dev` and
+test instances. Capture a snapshot, quit, relaunch without `fresh=1`, capture a
+second snapshot, then compare:
 
 ```bash
 scripts/desktop-native-qa.sh snapshot restart-1

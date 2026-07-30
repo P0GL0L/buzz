@@ -6,9 +6,9 @@ Local, native, hosted, and human-acceptance gates remain separate.
 ## Fork and identity isolation
 
 - Branch: `codex/asv-workspace-foundation`
-- Reader/browser checkpoint: `13d945cf`
-- Local/native hardening checkpoint: `63c855f0`
-- Skill-fabric checkpoint: `e7319758`
+- Reader/browser checkpoint: `4193fb04`
+- Local/native hardening checkpoint: `554dd615`
+- Skill-fabric checkpoint: `214276f4`
 - Bundle: `xyz.block.buzz.app.dev`
 - Keyring service: `buzz-desktop-dev.main`
 - Isolated development public key:
@@ -19,6 +19,16 @@ Local, native, hosted, and human-acceptance gates remain separate.
 - Packaged debug application is identified by macOS as `Buzz Dev`.
 - A stale production-key autofill attempted an identity import during native
   onboarding and was rejected by the standalone import guard.
+- The first post-onboarding direct app relaunch exposed a scope-loss bug:
+  Finder-launched debug bundles do not inherit `BUZZ_DEV_KEYRING_SERVICE` and
+  fell back to the unscoped `buzz-desktop-dev` service. The packaged debug
+  build now embeds the validated scoped service, while a valid runtime override
+  remains higher priority.
+- The accidental unscoped development key created by that failed launch was
+  deleted. The scoped development and production keyring records remain
+  present.
+- After rebuilding, two consecutive direct application quits and relaunches
+  reopened `Local Dev` as `ASV Buzz Dev` with no identity onboarding.
 
 ## Security incident and stop gate
 
@@ -34,8 +44,8 @@ Charles's explicit approval.
 
 ## Native and web QA
 
-- Desktop unit suite: 3,786 passing tests.
-- Native Tauri suite: 1,878 passing, 14 ignored OS-keychain/real-relay tests,
+- Desktop unit suite: 3,787 passing tests.
+- Native Tauri suite: 1,881 passing, 14 ignored OS-keychain/real-relay tests,
   plus three passing mixer diagnostics. The default full-suite concurrency
   reproduced process-probe flakes, including while other pre-push suites ran
   concurrently. The repository recipe now serializes this native suite; the
@@ -93,9 +103,11 @@ Repository gate status:
   its database and migration-ledger checksums verified.
 - Docker's ignored `NetworkType` experiment was removed before the recovery
   proof. The engine still reports `overlayfs`.
-- The packaged desktop has not yet joined the local relay because the Mac
-  locked before that native step. Local desktop connection and the
-  `ASV Buzz Dev` relay-local display name remain pending.
+- The packaged desktop joined only `http://localhost:3000`, created the
+  relay-local profile `ASV Buzz Dev`, and opened the local private `Welcome`
+  channel. The seeded welcome roster reached four local members.
+- Two packaged-app restart cycles preserved the scoped identity, local
+  community, profile name, and channel connection.
 
 ## Jarvis rotation
 
