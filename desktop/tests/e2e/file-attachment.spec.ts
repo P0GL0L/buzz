@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { installMockBridge } from "../helpers/bridge";
 import { expectCornerRadiusPx, expectSmoothCorners } from "../helpers/css";
+import { waitForAnimations } from "../helpers/animations";
 
 // Exercises the generic file-attachment UI contract end-to-end through the
 // mock Tauri bridge: paperclip upload → composer chip → send → FileCard in the
@@ -22,6 +23,13 @@ test.beforeEach(async ({ page }) => {
       },
     ],
   });
+  await page.route("https://mock.relay/media/*.pdf", async (route) => {
+    await route.fulfill({
+      body: "%PDF-1.4\n% Buzz E2E preview fixture\n",
+      contentType: "application/pdf",
+      status: 200,
+    });
+  });
 });
 
 test("upload a file and see a FileCard in the timeline", async ({ page }) => {
@@ -41,17 +49,25 @@ test("upload a file and see a FileCard in the timeline", async ({ page }) => {
   await page.getByTestId("send-message").click();
   await expect(page.getByText("Sending")).toHaveCount(0);
 
-  // A FileCard renders in the timeline: a button carrying the filename. It
-  // downloads via the native `download_file` command (HTTP inside the app's
-  // tunnel + save dialog), NOT a plain `<a download>` link — a bare link
-  // escapes the webview to the OS browser and hits a corporate CDN page.
+  // A FileCard renders in the timeline with separate in-app preview and native
+  // download actions. The download still uses the native command rather than
+  // a bare `<a download>` link.
   const card = page.getByTestId("file-card").last();
   await expect(card).toBeVisible();
   await expectCornerRadiusPx(card, 16);
   await expectSmoothCorners(card);
   await expect(card).toContainText("quarterly-report.pdf");
 
-  await card.click();
+  await card.getByTestId("file-card-preview").click();
+  await expect(page.getByTestId("workspace-panel")).toBeVisible();
+  await expect(page.getByTestId("workspace-pdf-preview")).toBeVisible();
+  await waitForAnimations(page);
+  await page.screenshot({
+    path: "test-results/workspace-reader/pdf-reader.png",
+  });
+
+  await page.getByRole("button", { name: "Close workspace" }).click();
+  await card.getByTestId("file-card-download").click();
   await expect
     .poll(() =>
       page.evaluate(
@@ -213,14 +229,16 @@ test("forum posts emit a FileCard for generic attachments, not a broken image", 
   // Submit the (attachment-only) forum post.
   await page.getByTestId("send-message").click();
 
-  // The post renders through the shared Markdown component as a FileCard —
-  // a button carrying the filename that downloads via the native
-  // `download_file` command — NOT an inline image and NOT a bare link.
+  // The post renders through the shared Markdown component as a FileCard with
+  // the same reader and download actions — not an inline image or bare link.
   const card = page.getByTestId("file-card");
   await expect(card).toBeVisible();
   await expect(card).toContainText("quarterly-report.pdf");
 
-  await card.click();
+  await card.getByTestId("file-card-preview").click();
+  await expect(page.getByTestId("workspace-panel")).toBeVisible();
+  await page.getByRole("button", { name: "Close workspace" }).click();
+  await card.getByTestId("file-card-download").click();
   await expect
     .poll(() =>
       page.evaluate(

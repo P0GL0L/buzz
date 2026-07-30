@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asv.local/buzz/skill-registry.schema.json",
+  "title": "ASV Buzz Skill Registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generatedAt", "registryVersion", "skills"],
+  "properties": {
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "registryVersion": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/skill"
+      }
+    }
+  },
+  "$defs": {
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "contentHash",
+        "displayName",
+        "entrypoint",
+        "invocationOwner",
+        "observedAt",
+        "sharingPolicy",
+        "skillId",
+        "sourceHost",
+        "sourcePackage"
+      ],
+      "properties": {
+        "availability": {
+          "enum": ["available", "degraded", "unavailable", "unknown"]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "connectors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "contentHash": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "invocationOwner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "sharingPolicy": {
+          "enum": ["private", "team-indexed", "portable"]
+        },
+        "skillId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._:-]*$"
+        },
+        "sourceHost": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourcePackage": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

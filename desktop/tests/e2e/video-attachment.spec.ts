@@ -619,11 +619,11 @@ test("video upload previews use poster frames and inline videos open review mode
   await commentBox.click();
   await commentBox.fill("Second pass note");
   await emitMockMessage(page, "general", "Unrelated chatter mid-review");
-  await expect(
-    page
-      .getByTestId("message-row")
-      .filter({ hasText: "Unrelated chatter mid-review" }),
-  ).toHaveCount(1);
+  // The open review dialog intentionally prevents the background timeline
+  // from auto-scrolling. The virtualized row can therefore remain outside
+  // the DOM; the unread pill is the stable evidence that the live event was
+  // accepted and triggered the timeline update.
+  await expect(page.getByRole("button", { name: "1 new message" })).toBeVisible();
   await expect(commentBox).toHaveText("Second pass note");
   await expect(commentBox).toBeFocused();
   await expect(page.getByTestId("video-review-composer-timecode")).toHaveText(
@@ -740,11 +740,19 @@ test("video upload previews use poster frames and inline videos open review mode
     .click({ position: { x: 4, y: 4 } });
   await expect(page.getByTestId("video-review-dialog")).toHaveCount(0);
 
-  const videoSummaryRow = page.locator(
-    `[data-thread-head-id="${videoMessageId}"]`,
+  // A live message intentionally arrived while review mode held the timeline
+  // position. Use the product affordance to reconcile the virtualized window
+  // before exercising the upload's thread summary.
+  await page.getByRole("button", { name: "1 new message" }).click();
+  await expect(page.getByRole("button", { name: "1 new message" })).toHaveCount(
+    0,
   );
-  await expect(videoSummaryRow).toBeVisible();
-  await videoSummaryRow.click();
+  const videoTimelineRow = page.locator(
+    `[data-message-id="${videoMessageId}"]`,
+  );
+  await expect(videoTimelineRow).toBeVisible();
+  await videoTimelineRow.hover();
+  await videoTimelineRow.getByRole("button", { name: "Reply" }).click();
 
   const threadPanel = page.getByTestId("message-thread-panel");
   await expect(threadPanel).toBeVisible();
@@ -934,7 +942,7 @@ test("right-click menus expose distinct selectors for links, relay video, and of
   await expect(page.getByTestId("chat-title")).toHaveText("general");
   await waitForMockLiveSubscription(page, "general");
 
-  // ── Link menu: Open link + Copy link, never image/video attributes ────────
+  // ── Link menu: Buzz + system browser choices, never media attributes ─────
   await emitMockMessage(
     page,
     "general",
@@ -958,15 +966,23 @@ test("right-click menus expose distinct selectors for links, relay video, and of
   await expect(linkMenu).toBeVisible();
   await expect(page.locator("[data-media-context-menu]")).toBeVisible();
   await expect(
-    linkMenu.getByRole("button", { name: "Open link" }),
+    linkMenu.getByRole("button", { name: "Open in Buzz browser" }),
+  ).toBeVisible();
+  await expect(
+    linkMenu.getByRole("button", { name: "Open in system browser" }),
   ).toBeVisible();
   await expect(
     linkMenu.getByRole("button", { name: "Copy link" }),
   ).toBeVisible();
   await expect(page.locator("[data-image-context-menu]")).toHaveCount(0);
   await expect(page.locator("[data-video-context-menu]")).toHaveCount(0);
-  // Dismiss the menu before the next probe: the menu closes on any click.
-  await page.getByTestId("chat-title").click();
+  await linkMenu.getByRole("button", { name: "Open in Buzz browser" }).click();
+  await expect(page.getByTestId("workspace-panel")).toBeVisible();
+  await expect(page.getByTestId("workspace-browser-frame")).toHaveAttribute(
+    "src",
+    "https://example.com/handbook",
+  );
+  await page.getByRole("button", { name: "Close workspace" }).click();
   await expect(linkMenu).toHaveCount(0);
 
   // ── Relay video menu: Download video + Copy link, appearing only once the

@@ -9,11 +9,11 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { requestOpenSnapshotImport } from "@/features/agents/openSnapshotImportFromUrlEvent";
+import { workspaceLinkMenuItems } from "@/features/workspace/lib/workspaceLinkMenu";
 import {
   parseMessageLink,
   resolveMessageLinkRenderTarget,
@@ -23,7 +23,6 @@ import { UserProfilePopover } from "@/features/profile/ui/UserProfilePopover";
 import { invokeTauri } from "@/shared/api/tauri";
 import { useChannelNavigation } from "@/shared/context/ChannelNavigationContext";
 import { cn } from "@/shared/lib/cn";
-import { copyTextToClipboard } from "@/shared/lib/clipboard";
 import {
   extractSupportedLinkPreviews,
   parseSupportedLinkPreview,
@@ -1326,24 +1325,7 @@ function ExternalLinkAnchor({
       {menu && href ? (
         <MediaContextMenu
           dataAttributes={["data-link-context-menu"]}
-          items={[
-            {
-              label: "Open link",
-              onSelect: () => {
-                closeMenu();
-                void openUrl(href).catch(() => {
-                  toast.error("Failed to open link");
-                });
-              },
-            },
-            {
-              label: "Copy link",
-              onSelect: () => {
-                closeMenu();
-                copyTextToClipboard(href, "Link copied to clipboard");
-              },
-            },
-          ]}
+          items={workspaceLinkMenuItems({ href, label, onClose: closeMenu })}
           position={menu}
         />
       ) : null}
@@ -1422,7 +1404,12 @@ function createMarkdownComponents(
     );
     if (card) {
       return (
-        <FileCard href={card.href} filename={card.filename} size={card.size} />
+        <FileCard
+          href={card.href}
+          filename={card.filename}
+          mime={card.mime}
+          size={card.size}
+        />
       );
     }
 
