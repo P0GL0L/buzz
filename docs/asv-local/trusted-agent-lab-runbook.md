@@ -86,10 +86,12 @@ Both development copies were removed; the production keyring and production
 application data were left untouched. Standalone imports are now disabled and
 a new isolated identity passed two-restart persistence.
 
-Treat the production signer as compromised. Do not create `agent-lab`, rotate
-Jarvis memberships, or publish registry records to the hosted relay until
-Charles explicitly authorizes production identity rotation and the resulting
-membership migration.
+Treat the production signer as compromised. Charles authorized production
+identity rotation and the resulting hosted membership migration on 2026-07-30.
+The replacement may be admitted additively, but do not create `agent-lab`,
+rotate Jarvis memberships, publish registry records, remove the old identity,
+or replace the production keyring until hosted ownership has transferred and
+the replacement has independently proved its authority.
 
 ## Hosted pilot admission order
 

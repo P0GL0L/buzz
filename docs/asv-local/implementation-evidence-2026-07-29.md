@@ -38,9 +38,10 @@ the local task transcript. Development copies were removed and a new
 development-only key was generated. The production keyring and application
 data were not changed.
 
-The production signer must be rotated before it is used to administer a new
-hosted room. That rotation is not implied by the original plan and requires
-Charles's explicit approval.
+Charles explicitly authorized production identity rotation and the associated
+hosted membership migration on 2026-07-30. The rotation is now in its
+additive, rollback-safe phase; the old signer has not been removed or replaced
+in the production keyring.
 
 ## Native and web QA
 
@@ -153,8 +154,30 @@ POGsAlien/Cody remains excluded.
 
 ## Hosted status
 
+- Old Charles public key:
+  `185c22c7a959c8d341fc4ab07216af3b083d0b9055ebe21a543d0bbbb17fd11c`
+- Replacement Charles public key:
+  `f9be6e874158486901ba431c53d295feaf2734a104bf80828214c785534ddab2`
+- The replacement signer is stored in a separate protected staging keyring.
+  Its local signed challenge verified before any hosted write.
+- The old relay owner added the replacement as a relay administrator in event
+  `830d2c7ba7391d849166745ff79442a0ffb937b3d11dfb83bb266491229bb850`.
+  The relay-signed kind `13534` snapshot
+  `61ca6821796e4c705c2bbccbd7d04ab09329904ea17657076da9fd19e897d3bb`
+  independently reports exactly two direct members: the old owner and the new
+  administrator.
+- The replacement published its own hosted profile in event
+  `d3861fc26c17b770546510d9ae37efab9c7d9950926a08fed4518b9fa95c1bbe`.
+- The replacement was added first as administrator and then as co-owner to all
+  12 pre-existing channels. A fresh read signed by the replacement reported
+  both old and new Charles identities as owner in all 12 channels.
+- No old Charles relay or channel membership has been removed. The installed
+  production keyring still holds the old signer.
+- Builderlab ownership transfer is blocked on the required human sign-in. The
+  production app currently has no Builderlab session; credentials are not
+  collected or entered by automation.
 - No `agent-lab` room was created.
 - No registry record was published.
-- No new identity was admitted to a hosted channel.
-- Existing hosted channels were not intentionally changed.
+- Existing hosted channel content, settings, and non-rotation memberships were
+  not changed.
 - The old Jarvis bridge was stopped as an explicit security rotation action.
