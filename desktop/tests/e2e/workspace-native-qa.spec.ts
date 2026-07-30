@@ -136,7 +136,7 @@ test("reader exercises Markdown, PDF, and malformed content with deterministic e
   });
 });
 
-test("reader keeps DOCX, XLSX, PPTX, and unknown formats explicitly unsupported", async ({
+test("reader previews DOCX, XLSX, and PPTX while keeping unknown formats unsupported", async ({
   page,
 }) => {
   const fixtures = [
@@ -152,7 +152,6 @@ test("reader keeps DOCX, XLSX, PPTX, and unknown formats explicitly unsupported"
       "deck.pptx",
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     ],
-    ["archive.bin", "application/octet-stream"],
   ] as const;
 
   for (const [filename, mime] of fixtures) {
@@ -164,8 +163,8 @@ test("reader keeps DOCX, XLSX, PPTX, and unknown formats explicitly unsupported"
     );
     await openFileCard(page, filename);
     await expect(
-      page.getByTestId("workspace-artifact-unsupported"),
-    ).toContainText("Preview not available yet");
+      page.getByTestId(`workspace-${filename.split(".").at(-1)}-preview`),
+    ).toBeVisible();
     await expect(
       page
         .getByTestId("workspace-panel")
@@ -176,13 +175,27 @@ test("reader keeps DOCX, XLSX, PPTX, and unknown formats explicitly unsupported"
 
   await emitAttachment(
     page,
-    "final-unsupported.pptx",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "https://example.com/native-qa/final-unsupported.pptx",
+    "archive.bin",
+    "application/octet-stream",
+    "https://example.com/native-qa/archive.bin",
   );
-  await openFileCard(page, "final-unsupported.pptx");
+  await openFileCard(page, "archive.bin");
+  await expect(
+    page.getByTestId("workspace-artifact-unsupported"),
+  ).toContainText("Preview not available yet");
+  await closeWorkspace(page);
+
+  await emitAttachment(
+    page,
+    "final-preview.pptx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "https://example.com/native-qa/final-preview.pptx",
+  );
+  await openFileCard(page, "final-preview.pptx");
+  await expect(page.getByText("Trusted agent collaboration")).toBeVisible();
+  await page.waitForTimeout(250);
   await page.screenshot({
-    path: "test-results/native-qa/workspace-office-unsupported.png",
+    path: "test-results/native-qa/workspace-office-preview.png",
   });
 });
 

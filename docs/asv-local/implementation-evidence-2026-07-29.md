@@ -61,6 +61,24 @@ provider-account ownership gate; it is not represented as revoked.
 - Workspace matrix covers Markdown, PDF, malformed PDF, DOCX, XLSX, PPTX,
   unknown files, images, browser navigation, blocked-frame fallback, restart,
   and keyboard close.
+- The Office matrix now exercises rendered semantic DOCX/XLSX/PPTX states
+  rather than the earlier unsupported placeholder. Six focused Rust tests
+  cover headings/lists/tables/links, shared strings/sparse cells/formulas,
+  ordered slides/notes, MIME mismatch, compound/encrypted containers,
+  macro-bearing packages, invalid ZIP signatures, and Quick Look active-content
+  sanitization.
+- The dedicated workspace Playwright lane passes four scenarios on a
+  configurable isolated test port. Port 4173 was already occupied by an
+  unrelated local site, so the test runner was updated to accept
+  `BUZZ_PLAYWRIGHT_PORT` without stopping that process.
+- Live Quick Look rendering in the packaged macOS window remains part of the
+  native visual gate; sanitizer unit coverage and browser-mock semantic
+  screenshots are not represented as that native proof.
+- The ADI-011 builder draft computes to 4.45/5.0 with no observed hard-fail,
+  but its verdict remains FAIL because the design verifier cannot declare a
+  macOS/Tauri target and independent review plus named-human acceptance are
+  pending. The stored verifier receipt must be read as an unsupported-platform
+  gate result, not a product-quality failure or an automated pass.
 - Packaged native screenshots were captured with secrets masked.
 - Packaged `Buzz Dev` exposed labelled controls through macOS accessibility.
   Keyboard traversal moved in order from `Join a community` to

@@ -1,9 +1,12 @@
 export type ArtifactPreviewKind =
+  | "docx"
   | "image"
   | "markdown"
   | "pdf"
+  | "pptx"
   | "text"
-  | "unsupported";
+  | "unsupported"
+  | "xlsx";
 
 export type ArtifactWorkspaceResource = {
   kind: "artifact";
@@ -34,6 +37,12 @@ const TEXT_EXTENSIONS = [
   ".yaml",
   ".yml",
 ];
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const XLSX_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+const PPTX_MIME =
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
 function hasExtension(filename: string, extensions: readonly string[]) {
   const normalized = filename.trim().toLowerCase();
@@ -46,6 +55,15 @@ export function classifyArtifactPreview({
 }: Pick<ArtifactWorkspaceResource, "filename" | "mime">): ArtifactPreviewKind {
   const normalizedMime = mime?.split(";")[0]?.trim().toLowerCase();
 
+  if (normalizedMime === DOCX_MIME || /\.docx$/i.test(filename)) {
+    return "docx";
+  }
+  if (normalizedMime === XLSX_MIME || /\.xlsx$/i.test(filename)) {
+    return "xlsx";
+  }
+  if (normalizedMime === PPTX_MIME || /\.pptx$/i.test(filename)) {
+    return "pptx";
+  }
   if (normalizedMime === "application/pdf" || /\.pdf$/i.test(filename)) {
     return "pdf";
   }

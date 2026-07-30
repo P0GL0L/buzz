@@ -41,19 +41,30 @@ test("classifyArtifactPreview recognizes images by MIME or extension", () => {
   assert.equal(classifyArtifactPreview({ filename: "capture.WEBP" }), "image");
 });
 
-test("classifyArtifactPreview keeps Office files honest", () => {
+test("classifyArtifactPreview recognizes supported OOXML Office files", () => {
   assert.equal(
     classifyArtifactPreview({
       filename: "brief.docx",
       mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
-    "unsupported",
+    "docx",
   );
   assert.equal(
     classifyArtifactPreview({
       filename: "model.xlsx",
       mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     }),
+    "xlsx",
+  );
+  assert.equal(
+    classifyArtifactPreview({
+      filename: "deck.pptx",
+      mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }),
+    "pptx",
+  );
+  assert.equal(
+    classifyArtifactPreview({ filename: "legacy.doc" }),
     "unsupported",
   );
 });

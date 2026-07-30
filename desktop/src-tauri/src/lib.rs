@@ -754,6 +754,7 @@ pub fn run() {
             save_png_data_url,
             download_file,
             fetch_media_bytes,
+            preview_office_artifact,
             copy_image_to_clipboard,
             copy_text_to_clipboard,
             fetch_snapshot_bytes,

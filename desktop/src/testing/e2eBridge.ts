@@ -11181,6 +11181,88 @@ export function maybeInstallE2eTauriMocks() {
         if (!response.ok) throw new Error(`fetch failed: ${response.status}`);
         return await response.arrayBuffer();
       }
+      case "preview_office_artifact": {
+        const filename = (
+          payload as { filename: string }
+        ).filename.toLowerCase();
+        if (filename.endsWith(".docx")) {
+          return {
+            version: 1,
+            format: "docx",
+            document: {
+              kind: "docx",
+              blocks: [
+                { kind: "heading", level: 1, text: "Agent Lab Brief" },
+                {
+                  kind: "paragraph",
+                  text: "Evidence-backed collaboration workspace.",
+                },
+                {
+                  kind: "table",
+                  rows: [
+                    ["Owner", "Capability"],
+                    ["Vision", "Artifact QA"],
+                  ],
+                },
+              ],
+              links: [],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        if (filename.endsWith(".xlsx")) {
+          return {
+            version: 1,
+            format: "xlsx",
+            document: {
+              kind: "xlsx",
+              sheets: [
+                {
+                  name: "Capabilities",
+                  rows: [
+                    [
+                      {
+                        reference: "A1",
+                        value: "Callable skills",
+                        formula: null,
+                      },
+                      { reference: "B1", value: "12", formula: "SUM(B2:B4)" },
+                    ],
+                  ],
+                  truncated: false,
+                },
+              ],
+              charts: [{ title: "Skills by owner", chartType: "bar" }],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        if (filename.endsWith(".pptx")) {
+          return {
+            version: 1,
+            format: "pptx",
+            document: {
+              kind: "pptx",
+              slides: [
+                {
+                  number: 1,
+                  title: "Buzz Dev",
+                  body: ["Trusted agent collaboration"],
+                  notes: ["Keep production isolated."],
+                },
+              ],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        throw new Error("Unsupported Office fixture");
+      }
       case "fetch_snapshot_bytes": {
         // The real command fetches + validates a snapshot attachment in memory
         // (size cap, SHA-256, decode). In E2E the bridge returns a minimal

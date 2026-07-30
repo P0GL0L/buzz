@@ -1,0 +1,45 @@
+{
+  "schema_version": "adi.verify.v1",
+  "build_dir": "/Users/charlesbonetti/Vision/buzz",
+  "mode": "static-heuristics (no compile/render/device; necessary, never sufficient)",
+  "declared_platforms": [],
+  "detected_stacks": [
+    "compose",
+    "pwa",
+    "swiftui"
+  ],
+  "score_results": [
+    {
+      "file": "adi-011-score-sheet.md",
+      "block": 1,
+      "axes": {
+        "A1": 5.0,
+        "A2": 4.0,
+        "A3": 5.0,
+        "A4": 5.0,
+        "A5": 4.0,
+        "A6": 4.0,
+        "A7": 4.0
+      },
+      "declared_overall": 4.45,
+      "computed_overall": 4.45,
+      "hardfails": "none observed in builder review",
+      "verdict": "FAIL"
+    }
+  ],
+  "findings": [
+    {
+      "level": "HARD-FAIL",
+      "flag": "PLATFORM-DECL",
+      "where": "design-note-workspace-foundation.md",
+      "msg": "no parseable 'Platform target(s):' line — the platform declaration drives verification (HF-A6) and is required by ADI-010"
+    },
+    {
+      "level": "HARD-FAIL",
+      "flag": "SHEET-VERDICT",
+      "where": "adi-011-score-sheet.md",
+      "msg": "completed verification requires Verdict: PASS"
+    }
+  ],
+  "exit": 1
+}

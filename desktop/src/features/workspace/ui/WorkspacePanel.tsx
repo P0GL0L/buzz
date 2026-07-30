@@ -27,6 +27,7 @@ import {
   type BrowserWorkspaceResource,
   type WorkspaceResource,
 } from "../lib/workspaceResource";
+import { OfficeArtifactReader } from "./OfficeArtifactReader";
 
 type ArtifactLoadState =
   | { phase: "idle" }
@@ -36,6 +37,23 @@ type ArtifactLoadState =
 
 function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
   const previewKind = classifyArtifactPreview(resource);
+  if (
+    previewKind === "docx" ||
+    previewKind === "xlsx" ||
+    previewKind === "pptx"
+  ) {
+    return <OfficeArtifactReader resource={resource} />;
+  }
+  return <BasicArtifactReader previewKind={previewKind} resource={resource} />;
+}
+
+function BasicArtifactReader({
+  previewKind,
+  resource,
+}: {
+  previewKind: ReturnType<typeof classifyArtifactPreview>;
+  resource: ArtifactWorkspaceResource;
+}) {
   const imageMime =
     previewKind === "image" && resource.mime?.startsWith("image/")
       ? resource.mime

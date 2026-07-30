@@ -2,6 +2,28 @@
 
 ## Classification
 
+Platform target(s): macOS desktop through Tauri 2; semantic document previews remain portable
+App category & jobs-to-be-done: productivity; keep files, agent output, research, and collaboration inside the active Buzz thread
+Selected navigation model (+ per-platform expression): rail-split-listdetail; existing desktop rail and timeline with a contextual right-side workspace
+Why this navigation fits the IA: the active conversation remains primary while one selected resource receives focused detail and controls
+Selected screen composition (per key screen): message timeline plus contextual split-on-large-screens artifact or browser detail
+Why this is not a generic template app (transplant test): removing signed Buzz messages, relay-backed attachments, agent provenance, and the persistent workspace would destroy the flow rather than leave a reusable dashboard shell
+Platform conventions honored (HIG / Material / PWA), per platform: native macOS window, keyring and file dialogs, Quick Look fidelity, keyboard navigation, and system external-open actions
+Style atlas match: existing Buzz structured, calm, dense-but-legible desktop grammar
+Reference moves borrowed (max 3, with verification grade): existing Buzz right-panel grammar (local product reference); macOS Quick Look handoff (system behavior); no external screen copied
+Template budget for this category / templated elements used / justification if > 0: one list/detail auxiliary workspace; within the productivity budget of one
+Tab bar: no new tab bar
+FAB: none
+Onboarding: none for this feature
+Forbidden defaults rejected (from the twelve tells): no reflexive five-tab bar, card wall, stat dashboard, blanket FAB, hidden primary navigation, onboarding carousel, identical-platform claim, wrapped-webview-as-native claim, happy-path-only states, modal-everything, unsafe chrome, or fixed type system
+Store-asset/screenshot provenance: captured-from-app @ `desktop/test-results/native-qa/workspace-office-preview.png`
+State design (loading, empty, error, offline, success) per key screen: explicit extraction loading, empty package, structured/rendered success, warning/truncation, malformed/encrypted/macro/oversized error, and original-download recovery
+Motion / gesture / haptics budget: existing short panel transition only; no theatrical delays or new haptics
+Permissions strategy (just-in-time, primed, least-privilege, graceful-deny): same-relay media fetch only; no Office execution; sandboxed fidelity HTML; native open/download remain user actions
+Accessibility plan (screen reader, Dynamic Type / font scale, contrast, reduce motion, target size): labelled controls, semantic buttons and tables, keyboard close/navigation, inherited Buzz type and contrast tokens; named-human screen-reader review pending
+Performance & battery risk: bounded compressed/expanded bytes, archive entries, XML parts, rows, cells, slides, assets, output text, and one blocking parser worker
+Implementation stack (per platform): Tauri 2 Rust commands, React 19 workspace UI, macOS Quick Look optional fidelity, semantic OOXML fallback
+
 - Product category: productivity / social collaboration
 - Platform target: macOS desktop through the existing Tauri 2 application
 - Build surface: Buzz Desktop
@@ -33,7 +55,7 @@ Use one contextual auxiliary panel with a stable header, resource metadata,
 content area, download/open-external actions, loading state, error state, and
 unsupported-format state.
 
-Phase-one rendered formats:
+Rendered formats:
 
 - images
 - PDF
@@ -41,10 +63,17 @@ Phase-one rendered formats:
 - plain text and source text
 - JSON
 - CSV
+- DOCX semantic structure: headings, paragraphs, lists, links, and tables
+- XLSX worksheet tabs, bounded cells, inert formulas, filtering, and chart
+  metadata
+- PPTX ordered slides, titles, body text, and speaker notes
 
-DOCX, XLSX, PPTX, and legacy Office formats enter the same reader but show an
-explicit conversion-not-yet-available state. This is an honest foundation for
-the later native conversion/rendering layer.
+Office previews are dual-layered. The bounded semantic representation is the
+portable baseline. On macOS, the reader may add a system Quick Look rendering
+after stripping scripts, active elements, event handlers, external links, and
+network-backed assets. The resulting HTML runs in a sandboxed frame with a
+deny-by-default content policy. Legacy, encrypted, macro-bearing, malformed,
+and oversized packages remain explicitly unsupported and downloadable.
 
 ### Browser
 
@@ -85,8 +114,10 @@ automation bridge with observable navigation state and scoped agent authority.
 ## Functional truth
 
 - “Preview” appears only for formats the phase-one renderer can actually open.
-- Office files are labeled as unsupported in this slice and remain
-  downloadable.
+- Office packages are previewable only after their filename, MIME declaration,
+  ZIP signature, archive budget, and required OOXML parts agree.
+- Formulas and Office content are never executed. Macro-bearing and encrypted
+  packages fail closed and remain downloadable.
 - Browser embed failures direct the user to the existing external opener.
 - The reader fetches relay media through the existing bounded native IPC path;
   it does not bypass Buzz's relay URL validation.
@@ -99,7 +130,10 @@ automation bridge with observable navigation state and scoped agent authority.
 - A PDF file card opens the right-side reader and can still be downloaded.
 - An image context menu can open the original in the right-side reader.
 - A Markdown or text file renders readable content in the reader.
-- An unsupported Office file opens an honest fallback state.
+- DOCX, XLSX, and PPTX open bounded semantic previews with search, copy, zoom,
+  and format-specific navigation.
+- Legacy, macro-bearing, encrypted, malformed, or oversized Office files open
+  an honest recoverable error and keep the original download action.
 - A normal HTTP(S) message link can be opened in the Buzz browser from its
   context menu without removing the OS-browser option.
 - Reader and browser states are keyboard-closeable and expose useful labels.
