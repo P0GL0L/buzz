@@ -114,6 +114,12 @@ with a TypeScript lookup table or an id comparison in a component.
     published or removed. A queued update must stay visibly queued, and the
     catalog itself must render only relay-confirmed publications — never an
     optimistic local persona.
+11. **Runtime-key normalization must not rewrite the configured relay tenant.**
+    `ManagedAgentRuntimeKey` canonicalizes equivalent loopback spellings for
+    process bookkeeping, but child connections and access probes retain the
+    validated configured relay authority. In particular, do not pass a
+    runtime key's canonical `127.0.0.1` URL to network code when the selected
+    community is keyed by `localhost`.
 
 ## The tests that enforce this
 
@@ -132,6 +138,8 @@ with a TypeScript lookup table or an id comparison in a component.
   acceptance coverage for readiness, failure states, defaults, navigation,
   successful-empty vs failed optional-model discovery, and persistence races.
 - Rust: `runtime_metadata_env_vars` tests pin spawn-time key application.
+- Rust: `configured_connection_preserves_loopback_tenant_authority` pins the
+  separation between canonical process identity and configured relay tenancy.
 - Rust: persona sharing/retention tests pin relay+owner scoping, durable
   enqueue errors, relay rejection/unavailability, and accepted publication.
 
