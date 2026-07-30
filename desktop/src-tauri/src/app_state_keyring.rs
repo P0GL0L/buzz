@@ -54,7 +54,7 @@ mod tests {
         );
         assert_eq!(
             dev_keyring_service(Some("buzz-desktop".to_string()), None),
-            "buzz-desktop-dev"
+            "buzz-desktop-dev.main"
         );
     }
 
