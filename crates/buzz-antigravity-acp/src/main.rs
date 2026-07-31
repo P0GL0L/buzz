@@ -311,7 +311,7 @@ async fn run_antigravity(
         .filter(|value| *value > 0)
         .unwrap_or(DEFAULT_TIMEOUT_SECONDS);
     let mut command = Command::new(binary);
-    command.args(antigravity_args(cwd, prompt));
+    command.args(antigravity_args(prompt));
     let mut child = command
         .current_dir(cwd)
         .stdin(Stdio::null())
@@ -387,12 +387,10 @@ async fn run_antigravity(
     Ok(PromptOutcome::Completed(text))
 }
 
-fn antigravity_args(cwd: &Path, prompt: &str) -> Vec<std::ffi::OsString> {
+fn antigravity_args(prompt: &str) -> Vec<std::ffi::OsString> {
     vec![
         "-p".into(),
         prompt.into(),
-        "--cwd".into(),
-        cwd.as_os_str().to_owned(),
         "--output-format".into(),
         "stream-json".into(),
     ]
@@ -568,7 +566,6 @@ mod tests {
         antigravity_args, compose_prompt, extract_prompt, result_text_from_event, MAX_PROMPT_BYTES,
     };
     use serde_json::json;
-    use std::path::Path;
 
     #[test]
     fn extracts_text_blocks_without_accepting_other_content() {
@@ -618,22 +615,16 @@ mod tests {
 
     #[test]
     fn invocation_is_one_shot_stream_json_without_resume() {
-        let args = antigravity_args(Path::new("/tmp/work"), "bounded task");
+        let args = antigravity_args("bounded task");
         let args = args
             .iter()
             .map(|value| value.to_string_lossy())
             .collect::<Vec<_>>();
         assert_eq!(
             args,
-            [
-                "-p",
-                "bounded task",
-                "--cwd",
-                "/tmp/work",
-                "--output-format",
-                "stream-json"
-            ]
+            ["-p", "bounded task", "--output-format", "stream-json"]
         );
+        assert!(!args.iter().any(|value| value.contains("cwd")));
         assert!(!args.iter().any(|value| value.contains("continue")));
         assert!(!args.iter().any(|value| value.contains("token")));
     }
