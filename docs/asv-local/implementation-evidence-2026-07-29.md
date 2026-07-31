@@ -269,9 +269,22 @@ POGsAlien/Cody remains excluded.
 - Rust check and warnings-denied Clippy passed for the provider boundary.
   Desktop typecheck, file-size and text-scale checks passed. The focused
   provider settings Playwright gate passed on isolated port `4192`.
-- Live Google and xAI connection proof remains pending provider-owned browser
-  consent and a real signed agent response; no installed runtime is described
-  as authenticated merely because its executable was found.
+- Provider status reconciliation now separates installed, authenticated,
+  runtime-verified, and hosted-admitted states. The desktop checks only for the
+  presence of scoped provider-owned credential artifacts and never reads or
+  projects their contents. A bounded no-tools verification action persists only
+  a sanitized result and never reopens OAuth.
+- Grok completed the bounded verification response and is displayed as
+  connected with a verification timestamp. Google Antigravity is authenticated,
+  but the provider returned an account-eligibility gate. Gemini CLI is
+  authenticated, but the provider reports that the personal account route is
+  unsupported and directs personal-plan use to Antigravity. Neither Google
+  runtime is represented as callable or hosted-admitted.
+- Provider reconciliation passed four focused Rust tests, warnings-as-errors
+  Tauri Clippy, desktop typecheck, and the focused provider Playwright gate. The
+  Developer ID-signed Buzz Dev bundle preserved `ASV Buzz Dev`, the existing
+  channels, and all nine canonical agent definitions and portraits across two
+  direct bundle restarts. Notarization remains a separate distribution gate.
 
 ## Hosted status
 

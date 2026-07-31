@@ -26,6 +26,11 @@ type ProviderConnectionRecord = {
   label: string;
   authMethod: string;
   installState: "installed" | "not_installed";
+  authenticationState:
+    | "authenticated"
+    | "unknown"
+    | "disconnected"
+    | "unavailable";
   availability: string;
   verificationTime: string | null;
   expirationTime: string | null;
@@ -38,8 +43,12 @@ function statusLabel(record: ProviderConnectionRecord): string {
   switch (record.availability) {
     case "verified":
       return "Connected";
+    case "authenticated_unverified":
+      return "Signed in — verify";
     case "pending_consent":
-      return "Waiting for consent";
+      return "Sign-in opened";
+    case "degraded":
+      return "Needs attention";
     case "disconnected":
       return "Disconnected";
     case "installed_unverified":
@@ -57,6 +66,7 @@ function statusTone(record: ProviderConnectionRecord): string {
   }
   if (
     record.availability === "pending_consent" ||
+    record.availability === "authenticated_unverified" ||
     record.availability === "installed_unverified"
   ) {
     return "bg-amber-500/15 text-amber-600 dark:text-amber-400";
@@ -67,9 +77,10 @@ function statusTone(record: ProviderConnectionRecord): string {
 /**
  * Non-secret account-routing status for provider-owned OAuth runtimes.
  *
- * Buzz never receives or renders tokens. Connect launches the provider's
- * official interactive login in a visible terminal; disconnect only removes
- * Buzz's permission to route work and leaves provider-owned credentials alone.
+ * Buzz never receives or renders tokens. Sign in launches the provider's
+ * official interactive login. Verify runs a bounded no-tools provider task and
+ * stores only its pass/fail status. Disconnect only removes Buzz's permission
+ * to route work and leaves provider-owned credentials alone.
  */
 export function ProviderConnectionsPanel() {
   const [records, setRecords] = React.useState<ProviderConnectionRecord[]>([]);
@@ -103,17 +114,17 @@ export function ProviderConnectionsPanel() {
 
   const run = async (
     providerId: string,
-    operation: "connect" | "disconnect",
+    operation: "connect" | "verify" | "disconnect",
   ) => {
     setAction(providerId);
     setError(null);
     try {
-      await invoke(
-        operation === "connect"
-          ? "connect_provider_connection"
-          : "disconnect_provider_connection",
-        { providerId },
-      );
+      const command = {
+        connect: "connect_provider_connection",
+        verify: "verify_provider_connection",
+        disconnect: "disconnect_provider_connection",
+      }[operation];
+      await invoke(command, { providerId });
       await load();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -132,8 +143,10 @@ export function ProviderConnectionsPanel() {
           Provider connections
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Connect provider-owned accounts, then assign the matching runtime to
-          an agent below. Buzz stores status and routing metadata, never tokens.
+          Buzz detects provider-owned sign-in evidence without reading it.
+          Verify runs one bounded no-tools response before the runtime can be
+          treated as connected. Buzz stores status and routing metadata, never
+          tokens.
         </p>
       </div>
 
@@ -147,6 +160,14 @@ export function ProviderConnectionsPanel() {
             const working = action === record.providerId;
             const canDisconnect = [
               "verified",
+              "authenticated_unverified",
+              "pending_consent",
+              "degraded",
+              "expired",
+            ].includes(record.availability);
+            const canVerify = [
+              "verified",
+              "authenticated_unverified",
               "pending_consent",
               "degraded",
               "expired",
@@ -178,7 +199,11 @@ export function ProviderConnectionsPanel() {
                       </span>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Runtime: {record.runtimeId} ·{" "}
+                      Authentication:{" "}
+                      {record.authenticationState === "authenticated"
+                        ? "signed in"
+                        : record.authenticationState.replaceAll("_", " ")}
+                      {" · "}Runtime: {record.runtimeId} ·{" "}
                       {record.authMethod.replaceAll("-", " ")}
                     </p>
                     {record.verificationTime ? (
@@ -204,6 +229,23 @@ export function ProviderConnectionsPanel() {
                         <ExternalLink className="h-4 w-4" />
                         Install guide
                       </Button>
+                    ) : canVerify ? (
+                      <Button
+                        disabled={working}
+                        onClick={() => void run(record.providerId, "verify")}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {working ? (
+                          <LoaderCircle className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="h-4 w-4" />
+                        )}
+                        {record.availability === "verified"
+                          ? "Verify again"
+                          : "Verify"}
+                      </Button>
                     ) : (
                       <Button
                         disabled={working}
@@ -218,10 +260,8 @@ export function ProviderConnectionsPanel() {
                           <PlugZap className="h-4 w-4" />
                         )}
                         {record.availability === "disconnected"
-                          ? "Reconnect"
-                          : record.availability === "installed_unverified"
-                            ? "Connect"
-                            : "Reconnect"}
+                          ? "Sign in again"
+                          : "Sign in"}
                       </Button>
                     )}
                     {canDisconnect ? (

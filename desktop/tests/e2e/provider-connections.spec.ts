@@ -16,10 +16,16 @@ test("provider settings distinguish install and OAuth connection state", async (
   const grok = page.getByTestId("provider-connection-xai");
   await expect(grok.getByText("Grok Build")).toBeVisible();
   await expect(grok.getByText("Ready to connect")).toBeVisible();
-  await expect(grok.getByRole("button", { name: "Connect" })).toBeVisible();
+  await expect(grok.getByRole("button", { name: "Sign in" })).toBeVisible();
 
   const antigravity = page.getByTestId("provider-connection-google-personal");
-  await expect(antigravity.getByText("Waiting for consent")).toBeVisible();
+  await expect(antigravity.getByText("Signed in — verify")).toBeVisible();
+  await expect(
+    antigravity.getByText("Authentication: signed in"),
+  ).toBeVisible();
+  await expect(
+    antigravity.getByRole("button", { name: "Verify", exact: true }),
+  ).toBeVisible();
   await expect(
     antigravity.getByRole("button", { name: "Disconnect" }),
   ).toBeVisible();

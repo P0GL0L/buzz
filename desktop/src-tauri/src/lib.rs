@@ -761,6 +761,7 @@ pub fn run() {
             preview_office_artifact,
             list_provider_connections,
             connect_provider_connection,
+            verify_provider_connection,
             disconnect_provider_connection,
             list_skill_registry,
             open_workspace_browser,

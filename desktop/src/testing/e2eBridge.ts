@@ -10422,12 +10422,13 @@ export function maybeInstallE2eTauriMocks() {
       case "list_provider_connections":
         return [
           {
-            version: 1,
+            version: 2,
             providerId: "xai",
             runtimeId: "grok",
             label: "Grok Build",
             authMethod: "oauth",
             installState: "installed",
+            authenticationState: "unknown",
             availability: "installed_unverified",
             verificationTime: null,
             expirationTime: null,
@@ -10437,13 +10438,14 @@ export function maybeInstallE2eTauriMocks() {
             installUrl: "https://build.x.ai/docs",
           },
           {
-            version: 1,
+            version: 2,
             providerId: "google-personal",
             runtimeId: "antigravity",
             label: "Google Antigravity",
             authMethod: "google-oauth",
             installState: "installed",
-            availability: "pending_consent",
+            authenticationState: "authenticated",
+            availability: "authenticated_unverified",
             verificationTime: null,
             expirationTime: null,
             storageScope:
@@ -10452,12 +10454,13 @@ export function maybeInstallE2eTauriMocks() {
             installUrl: "https://antigravity.google/docs/cli/install",
           },
           {
-            version: 1,
+            version: 2,
             providerId: "google-enterprise",
             runtimeId: "gemini",
             label: "Gemini CLI",
             authMethod: "google-oauth-or-cloud",
             installState: "not_installed",
+            authenticationState: "unavailable",
             availability: "not_installed",
             verificationTime: null,
             expirationTime: null,
@@ -10469,14 +10472,31 @@ export function maybeInstallE2eTauriMocks() {
         ];
       case "connect_provider_connection":
         return {
-          version: 1,
+          version: 2,
           providerId: (payload as { providerId: string }).providerId,
           launched: true,
           status: "pending_consent",
         };
+      case "verify_provider_connection":
+        return {
+          version: 2,
+          providerId: (payload as { providerId: string }).providerId,
+          runtimeId: "mock",
+          label: "Mock provider",
+          authMethod: "oauth",
+          installState: "installed",
+          authenticationState: "authenticated",
+          availability: "verified",
+          verificationTime: "2026-07-30T18:00:00Z",
+          expirationTime: null,
+          storageScope:
+            "buzz-dev-provider-directory-and-provider-owned-keyring",
+          failure: null,
+          installUrl: "https://example.com/provider",
+        };
       case "disconnect_provider_connection":
         return {
-          version: 1,
+          version: 2,
           providerId: (payload as { providerId: string }).providerId,
           status: "disconnected",
         };
