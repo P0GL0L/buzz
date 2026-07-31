@@ -12,8 +12,9 @@ Keep these lanes separate in every report:
 4. **Human acceptance:** named on-device review of the Tauri application.
 
 The standalone development identity must never connect to the hosted relay.
-The local relay must not be bound or advertised to a tailnet during this
-milestone.
+The local relay remains bound to loopback. Mobile pairing may advertise a
+private, TLS-terminated tailnet front door, but must never use a public Funnel
+or widen the relay listener beyond loopback.
 
 ## Development identity
 
@@ -44,6 +45,10 @@ relay is healthy. Do not publish that profile to the hosted relay.
 
 Docker Desktop is the selected macOS engine. Installation and first-launch
 license acceptance remain separate gates; a human must accept Docker's terms.
+After first launch, enable **Start Docker Desktop when you sign in** and disable
+**Open Docker Dashboard when Docker Desktop starts**. Closing the dashboard
+window does not stop the engine. Do not use **Quit Docker Desktop** while ASV
+Buzz is connected to the local relay.
 
 ```bash
 just setup
@@ -51,6 +56,11 @@ just local-stack-verify
 just relay
 just local-stack-verify --with-relay
 ```
+
+`just relay` and `just dev` start an installed Docker Desktop through its
+background CLI when the engine is stopped, then wait for it before starting
+the Compose services. They do not use `open -a Docker` or require the dashboard
+window to remain visible.
 
 The Compose project owns persistent Postgres, MinIO, and Prometheus volumes.
 All published development-service ports bind to `127.0.0.1`; do not widen

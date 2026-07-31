@@ -165,8 +165,32 @@ _ensure-sidecar-stubs:
         touch "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
 
+# Start Docker Desktop without opening its dashboard, then wait for the engine.
+# Linux and other non-Desktop environments retain the existing explicit error.
+_ensure-docker-engine:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if docker info >/dev/null 2>&1; then
+        exit 0
+    fi
+    if [[ "$(uname -s)" != "Darwin" ]] || ! docker desktop version >/dev/null 2>&1; then
+        echo "Error: Docker daemon is not running. Start Docker and try again." >&2
+        exit 1
+    fi
+    echo "Starting Docker Desktop in the background..."
+    docker desktop start >/dev/null
+    for _ in $(seq 1 120); do
+        if docker info >/dev/null 2>&1; then
+            echo "Docker Desktop engine is ready"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "Error: Docker Desktop did not become ready within 120 seconds." >&2
+    exit 1
+
 # Ensure Docker dev services (Postgres, Redis, etc.) are running and healthy
-_ensure-services:
+_ensure-services: _ensure-docker-engine
     #!/usr/bin/env bash
     set -euo pipefail
     services_ready() {
