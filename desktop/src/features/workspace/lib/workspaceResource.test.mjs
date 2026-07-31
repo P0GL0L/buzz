@@ -5,6 +5,7 @@ import {
   classifyArtifactPreview,
   formatWorkspaceFileSize,
   normalizeBrowserUrl,
+  resolvedArtifactId,
 } from "./workspaceResource.ts";
 
 test("classifyArtifactPreview recognizes PDF by MIME or extension", () => {
@@ -84,4 +85,27 @@ test("formatWorkspaceFileSize uses compact binary units", () => {
   assert.equal(formatWorkspaceFileSize(undefined), "");
   assert.equal(formatWorkspaceFileSize(820), "820 B");
   assert.equal(formatWorkspaceFileSize(12_700), "12 KB");
+});
+
+test("resolvedArtifactId keeps revision chains stable across URLs", () => {
+  assert.equal(
+    resolvedArtifactId({
+      kind: "artifact",
+      url: "https://relay/changed",
+      filename: "report.pdf",
+      artifactId: "artifact-123",
+      sha256: "a".repeat(64),
+    }),
+    "artifact-123",
+  );
+  assert.equal(
+    resolvedArtifactId({
+      kind: "artifact",
+      url: "",
+      localPath: "/private/browser.png",
+      filename: "browser.png",
+      sha256: "b".repeat(64),
+    }),
+    `sha256:${"b".repeat(64)}`,
+  );
 });

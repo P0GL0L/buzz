@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { installMockBridge } from "../helpers/bridge";
 import { expectCornerRadiusPx, expectSmoothCorners } from "../helpers/css";
 import { waitForAnimations } from "../helpers/animations";
+import { onePagePdf } from "../helpers/pdf";
 
 // Exercises the generic file-attachment UI contract end-to-end through the
 // mock Tauri bridge: paperclip upload → composer chip → send → FileCard in the
@@ -25,7 +26,7 @@ test.beforeEach(async ({ page }) => {
   });
   await page.route("https://mock.relay/media/*.pdf", async (route) => {
     await route.fulfill({
-      body: "%PDF-1.4\n% Buzz E2E preview fixture\n",
+      body: onePagePdf("Quarterly report"),
       contentType: "application/pdf",
       status: 200,
     });

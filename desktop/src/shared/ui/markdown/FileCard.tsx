@@ -23,11 +23,23 @@ export function FileCard({
   filename,
   mime,
   size,
+  sha256,
+  artifactId,
+  artifactVersion,
+  artifactParent,
+  artifactSource,
+  artifactCorrelation,
 }: {
   href: string;
   filename: string;
   mime?: string;
   size?: number;
+  sha256?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 }) {
   const cardRef = React.useRef<HTMLDivElement | null>(null);
   const sizeLabel = formatWorkspaceFileSize(size);
@@ -64,6 +76,19 @@ export function FileCard({
               filename,
               mime,
               size,
+              sha256,
+              artifactId,
+              version: artifactVersion,
+              parentEventId: artifactParent,
+              source:
+                artifactSource === "agent-result" ||
+                artifactSource === "browser-download" ||
+                artifactSource === "browser-screenshot" ||
+                artifactSource === "generated" ||
+                artifactSource === "revision"
+                  ? artifactSource
+                  : "attachment",
+              correlationId: artifactCorrelation,
             })
           }
           size="icon-xs"

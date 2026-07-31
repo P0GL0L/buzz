@@ -1413,6 +1413,12 @@ function createMarkdownComponents(
           filename={card.filename}
           mime={card.mime}
           size={card.size}
+          sha256={card.sha256}
+          artifactId={card.artifactId}
+          artifactVersion={card.artifactVersion}
+          artifactParent={card.artifactParent}
+          artifactSource={card.artifactSource}
+          artifactCorrelation={card.artifactCorrelation}
         />
       );
     }

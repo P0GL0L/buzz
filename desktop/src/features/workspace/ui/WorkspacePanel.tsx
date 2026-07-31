@@ -1,5 +1,15 @@
 import * as React from "react";
-import { Download, FileQuestion, Globe2, Loader2, X } from "lucide-react";
+import {
+  Download,
+  ExternalLink,
+  FileQuestion,
+  Globe2,
+  History,
+  Info,
+  Loader2,
+  X,
+} from "lucide-react";
+import { openPath } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 
 import { invokeTauri } from "@/shared/api/tauri";
@@ -12,11 +22,14 @@ import {
   classifyArtifactPreview,
   formatWorkspaceFileSize,
   normalizeBrowserUrl,
+  resolvedArtifactId,
   type ArtifactWorkspaceResource,
   type WorkspaceResource,
 } from "../lib/workspaceResource";
 import { NativeBrowserReader } from "./NativeBrowserReader";
 import { OfficeArtifactReader } from "./OfficeArtifactReader";
+import { PdfArtifactReader } from "./PdfArtifactReader";
+import { requestOpenWorkspaceResource } from "../openWorkspaceResourceEvent";
 
 type ArtifactLoadState =
   | { phase: "idle" }
@@ -32,6 +45,13 @@ function ArtifactReader({ resource }: { resource: ArtifactWorkspaceResource }) {
     previewKind === "pptx"
   ) {
     return <OfficeArtifactReader resource={resource} />;
+  }
+  if (previewKind === "pdf") {
+    return (
+      <div className="h-full min-h-0" data-testid="workspace-pdf-preview">
+        <PdfArtifactReader resource={resource} />
+      </div>
+    );
   }
   return <BasicArtifactReader previewKind={previewKind} resource={resource} />;
 }
@@ -50,6 +70,9 @@ function BasicArtifactReader({
   const [state, setState] = React.useState<ArtifactLoadState>({
     phase: previewKind === "unsupported" ? "idle" : "loading",
   });
+  const [textMode, setTextMode] = React.useState<"rendered" | "source">(
+    "rendered",
+  );
 
   React.useEffect(() => {
     if (previewKind === "unsupported") {
@@ -70,17 +93,6 @@ function BasicArtifactReader({
     )
       .then((bytes) => {
         if (!active) return;
-
-        if (previewKind === "pdf") {
-          const signature = new TextDecoder("ascii").decode(bytes.slice(0, 5));
-          if (signature !== "%PDF-") {
-            throw new Error("This file does not contain a valid PDF header.");
-          }
-          const blob = new Blob([bytes], { type: "application/pdf" });
-          blobUrl = URL.createObjectURL(blob);
-          setState({ phase: "ready", blobUrl });
-          return;
-        }
 
         if (previewKind === "image") {
           const blob = new Blob([bytes], { type: imageMime });
@@ -150,17 +162,6 @@ function BasicArtifactReader({
     );
   }
 
-  if (previewKind === "pdf" && state.blobUrl) {
-    return (
-      <iframe
-        className="h-full w-full border-0 bg-background"
-        data-testid="workspace-pdf-preview"
-        src={state.blobUrl}
-        title={`Preview of ${resource.filename}`}
-      />
-    );
-  }
-
   if (previewKind === "image" && state.blobUrl) {
     return (
       <div
@@ -178,11 +179,40 @@ function BasicArtifactReader({
 
   if (previewKind === "markdown") {
     return (
-      <div
-        className="h-full overflow-auto px-6 py-5"
-        data-testid="workspace-markdown-preview"
-      >
-        <Markdown content={state.text ?? ""} interactive={false} />
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="flex shrink-0 justify-end gap-1 border-b px-3 py-2">
+          <Button
+            onClick={() => setTextMode("rendered")}
+            size="xs"
+            type="button"
+            variant={textMode === "rendered" ? "secondary" : "ghost"}
+          >
+            Rendered
+          </Button>
+          <Button
+            onClick={() => setTextMode("source")}
+            size="xs"
+            type="button"
+            variant={textMode === "source" ? "secondary" : "ghost"}
+          >
+            Source
+          </Button>
+        </div>
+        {textMode === "rendered" ? (
+          <div
+            className="min-h-0 flex-1 overflow-auto px-6 py-5"
+            data-testid="workspace-markdown-preview"
+          >
+            <Markdown content={state.text ?? ""} interactive={false} />
+          </div>
+        ) : (
+          <pre
+            className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words p-5 font-mono text-sm leading-6"
+            data-testid="workspace-markdown-source"
+          >
+            {state.text ?? ""}
+          </pre>
+        )}
       </div>
     );
   }
@@ -205,6 +235,7 @@ export function WorkspacePanel({
   resource: WorkspaceResource;
 }) {
   const isArtifact = resource.kind === "artifact";
+  const [showArtifactDetails, setShowArtifactDetails] = React.useState(false);
   const normalizedBrowserUrl =
     resource.kind === "browser" ? normalizeBrowserUrl(resource.url) : null;
   const title = isArtifact
@@ -256,7 +287,27 @@ export function WorkspacePanel({
               {metadata}
             </p>
           </div>
-          {isArtifact ? (
+          {isArtifact && resource.localPath ? (
+            <Button
+              aria-label={`Open ${resource.filename} in its native application`}
+              onClick={() => {
+                void openPath(resource.localPath ?? "").catch(
+                  (error: unknown) =>
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Couldn’t open the native application",
+                    ),
+                );
+              }}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <ExternalLink />
+            </Button>
+          ) : null}
+          {isArtifact && !resource.localPath ? (
             <Button
               aria-label={`Download ${resource.filename}`}
               data-testid="workspace-download"
@@ -277,6 +328,18 @@ export function WorkspacePanel({
               <Download />
             </Button>
           ) : null}
+          {isArtifact ? (
+            <Button
+              aria-label="Artifact metadata and revision history"
+              aria-pressed={showArtifactDetails}
+              onClick={() => setShowArtifactDetails((visible) => !visible)}
+              size="icon"
+              type="button"
+              variant={showArtifactDetails ? "secondary" : "ghost"}
+            >
+              {resource.revisions?.length ? <History /> : <Info />}
+            </Button>
+          ) : null}
           <Button
             aria-label="Close workspace"
             onClick={onClose}
@@ -287,6 +350,95 @@ export function WorkspacePanel({
             <X />
           </Button>
         </header>
+        {isArtifact && showArtifactDetails ? (
+          <section
+            aria-label="Artifact metadata"
+            className="max-h-52 shrink-0 overflow-auto border-b bg-muted/20 px-4 py-3 text-xs"
+            data-testid="workspace-artifact-metadata"
+          >
+            <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
+              <dt className="text-muted-foreground">Artifact</dt>
+              <dd
+                className="truncate font-mono"
+                title={resolvedArtifactId(resource)}
+              >
+                {resolvedArtifactId(resource)}
+              </dd>
+              <dt className="text-muted-foreground">Version</dt>
+              <dd>{resource.version ?? 1}</dd>
+              <dt className="text-muted-foreground">Source</dt>
+              <dd>{resource.source ?? "attachment"}</dd>
+              {resource.sha256 ? (
+                <>
+                  <dt className="text-muted-foreground">SHA-256</dt>
+                  <dd className="truncate font-mono" title={resource.sha256}>
+                    {resource.sha256}
+                  </dd>
+                </>
+              ) : null}
+              {resource.signer ? (
+                <>
+                  <dt className="text-muted-foreground">Signer</dt>
+                  <dd className="truncate font-mono" title={resource.signer}>
+                    {resource.signer}
+                  </dd>
+                </>
+              ) : null}
+              {resource.correlationId ? (
+                <>
+                  <dt className="text-muted-foreground">Task correlation</dt>
+                  <dd className="truncate font-mono">
+                    {resource.correlationId}
+                  </dd>
+                </>
+              ) : null}
+            </dl>
+            {resource.revisions?.length ? (
+              <div className="mt-3 border-t pt-3">
+                <p className="mb-2 font-medium">Signed revisions</p>
+                <ol className="space-y-1">
+                  {[...resource.revisions]
+                    .sort((a, b) => b.version - a.version)
+                    .map((revision) => (
+                      <li key={revision.eventId}>
+                        <button
+                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-muted"
+                          onClick={() =>
+                            requestOpenWorkspaceResource({
+                              kind: "artifact",
+                              artifactId: resolvedArtifactId(resource),
+                              correlationId: resource.correlationId,
+                              filename: revision.filename,
+                              mime: revision.mime,
+                              parentEventId: revision.parentEventId,
+                              revisions: resource.revisions,
+                              sha256: revision.sha256,
+                              signer: revision.signer,
+                              size: revision.size,
+                              source: revision.source,
+                              threadId: resource.threadId,
+                              url: revision.url,
+                              version: revision.version,
+                            })
+                          }
+                          type="button"
+                        >
+                          <span>Version {revision.version}</span>
+                          <span className="text-muted-foreground">
+                            {revision.filename}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                </ol>
+              </div>
+            ) : (
+              <p className="mt-3 border-t pt-3 text-muted-foreground">
+                No additional signed revisions are attached to this thread.
+              </p>
+            )}
+          </section>
+        ) : null}
         <div className="min-h-0 flex-1">
           {resource.kind === "artifact" ? (
             <ArtifactReader resource={resource} />

@@ -15,12 +15,52 @@ export type ArtifactWorkspaceResource = {
   filename: string;
   mime?: string;
   size?: number;
+  artifactId?: string;
+  version?: number;
+  parentEventId?: string;
+  parentVersion?: number;
+  source?:
+    | "attachment"
+    | "agent-result"
+    | "browser-download"
+    | "browser-screenshot"
+    | "generated"
+    | "revision";
+  sha256?: string;
+  signer?: string;
+  threadId?: string;
+  correlationId?: string;
+  revisions?: ArtifactRevisionSummary[];
 };
+
+export type ArtifactRevisionSummary = {
+  eventId: string;
+  version: number;
+  parentEventId?: string;
+  filename: string;
+  mime?: string;
+  size?: number;
+  sha256: string;
+  signer: string;
+  source: NonNullable<ArtifactWorkspaceResource["source"]>;
+  createdAt: number;
+  url: string;
+};
+
+export function resolvedArtifactId(
+  resource: ArtifactWorkspaceResource,
+): string {
+  if (resource.artifactId?.trim()) return resource.artifactId.trim();
+  if (resource.sha256?.trim()) return `sha256:${resource.sha256.trim()}`;
+  return `url:${resource.url || resource.localPath || resource.filename}`;
+}
 
 export type BrowserWorkspaceResource = {
   kind: "browser";
   url: string;
   title?: string;
+  threadId?: string;
+  correlationId?: string;
 };
 
 export type WorkspaceResource =

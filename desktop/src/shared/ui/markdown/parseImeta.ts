@@ -55,6 +55,21 @@ export function parseImetaTags(
         case "filename":
           entry.filename = val;
           break;
+        case "artifact":
+          entry.artifactId = val;
+          break;
+        case "artifact-version":
+          entry.artifactVersion = parseInt(val, 10);
+          break;
+        case "artifact-parent":
+          entry.artifactParent = val;
+          break;
+        case "artifact-source":
+          entry.artifactSource = val;
+          break;
+        case "artifact-correlation":
+          entry.artifactCorrelation = val;
+          break;
       }
     }
     if (entry.url) map.set(entry.url, entry as ParsedImetaEntry);

@@ -9,7 +9,7 @@ use tauri::State;
 use self::model::{OfficeFidelity, OfficeFormat, OfficePreview};
 use crate::app_state::AppState;
 use crate::commands::media_download::{fetch_blob_bytes_with_cap, validate_download_url};
-use crate::commands::workspace_browser::read_workspace_download;
+use crate::commands::workspace_browser::read_workspace_browser_artifact;
 use crate::relay::relay_api_base_url_with_override;
 
 const MAX_OFFICE_DOWNLOAD_BYTES: u64 = 20 * 1024 * 1024;
@@ -78,7 +78,7 @@ pub async fn preview_office_artifact(
     let format = OfficeFormat::from_filename(&filename)?;
     validate_declared_mime(format, mime.as_deref())?;
     let bytes = if let Some(path) = local_path {
-        read_workspace_download(&app, &path, MAX_OFFICE_DOWNLOAD_BYTES)?
+        read_workspace_browser_artifact(&app, &path, MAX_OFFICE_DOWNLOAD_BYTES)?
     } else {
         let relay_base = relay_api_base_url_with_override(&state);
         validate_download_url(&url, &relay_base)?;
