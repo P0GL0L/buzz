@@ -59,6 +59,7 @@ async fn enforce_http_admission(
 ///
 /// Returns the authenticated public key and an event ID for replay detection.
 /// For X-Pubkey dev mode, the event ID is a zero hash (no replay concern).
+#[cfg(test)]
 pub(crate) fn verify_bridge_auth(
     headers: &HeaderMap,
     method: &str,
@@ -66,13 +67,38 @@ pub(crate) fn verify_bridge_auth(
     body: Option<&[u8]>,
     require_auth_token: bool,
 ) -> Result<(nostr::PublicKey, [u8; 32]), (StatusCode, Json<Value>)> {
-    verify_bridge_auth_with_options(headers, method, url, body, require_auth_token, false)
+    verify_bridge_auth_with_options_for_urls(
+        headers,
+        method,
+        &[url.to_string()],
+        body,
+        require_auth_token,
+        false,
+    )
 }
 
 pub(crate) fn verify_bridge_auth_with_options(
     headers: &HeaderMap,
     method: &str,
     url: &str,
+    body: Option<&[u8]>,
+    require_auth_token: bool,
+    require_payload: bool,
+) -> Result<(nostr::PublicKey, [u8; 32]), (StatusCode, Json<Value>)> {
+    verify_bridge_auth_with_options_for_urls(
+        headers,
+        method,
+        &[url.to_string()],
+        body,
+        require_auth_token,
+        require_payload,
+    )
+}
+
+pub(crate) fn verify_bridge_auth_with_options_for_urls(
+    headers: &HeaderMap,
+    method: &str,
+    urls: &[String],
     body: Option<&[u8]>,
     require_auth_token: bool,
     require_payload: bool,
@@ -108,7 +134,7 @@ pub(crate) fn verify_bridge_auth_with_options(
             ));
         }
 
-        let pubkey = buzz_auth::verify_nip98_event(&event_json, url, method, body)
+        let pubkey = buzz_auth::verify_nip98_event_for_urls(&event_json, urls, method, body)
             .map_err(|e| api_error(StatusCode::UNAUTHORIZED, &format!("NIP-98: {e}")))?;
 
         return Ok((pubkey, event_id_bytes));
@@ -125,6 +151,34 @@ pub(crate) fn verify_bridge_auth_with_options(
     }
 
     Err(api_error(StatusCode::UNAUTHORIZED, "missing Nostr auth"))
+}
+
+/// Return the trusted signed URL origins for a tenant-bound HTTP request.
+///
+/// The public reverse-proxy URL is admitted only for the deployment community,
+/// never for another tenant sharing the relay process. `remote_relay_url` is
+/// validated at configuration load and cannot contain credentials, query data,
+/// or a fragment.
+pub(crate) fn nip98_expected_urls(
+    config_relay_url: &str,
+    remote_relay_url: Option<&str>,
+    tenant: &TenantContext,
+    path: &str,
+) -> Vec<String> {
+    let mut urls = vec![nip98_expected_url(config_relay_url, tenant, path)];
+    if tenant.host() == buzz_core::tenant::relay_url_authority(config_relay_url) {
+        if let Some(remote) = remote_relay_url {
+            let https_origin = remote
+                .replacen("wss://", "https://", 1)
+                .trim_end_matches('/')
+                .to_string();
+            let candidate = format!("{https_origin}{path}");
+            if !urls.contains(&candidate) {
+                urls.push(candidate);
+            }
+        }
+    }
+    urls
 }
 
 /// Check NIP-98 replay and record the event ID atomically.
@@ -229,6 +283,24 @@ pub(crate) fn nip42_expected_relay_url(config_relay_url: &str, tenant: &TenantCo
         "ws"
     };
     format!("{scheme}://{}", tenant.host())
+}
+
+/// Return trusted NIP-42 relay origins for a tenant-bound WebSocket.
+pub(crate) fn nip42_expected_relay_urls(
+    config_relay_url: &str,
+    remote_relay_url: Option<&str>,
+    tenant: &TenantContext,
+) -> Vec<String> {
+    let mut urls = vec![nip42_expected_relay_url(config_relay_url, tenant)];
+    if tenant.host() == buzz_core::tenant::relay_url_authority(config_relay_url) {
+        if let Some(remote) = remote_relay_url {
+            let candidate = remote.trim_end_matches('/').to_string();
+            if !urls.contains(&candidate) {
+                urls.push(candidate);
+            }
+        }
+    }
+    urls
 }
 
 /// Extract a channel UUID from a single filter's `#h` tag.
@@ -636,13 +708,19 @@ pub async fn submit_event(
             )
         })?;
 
-    let url = nip98_expected_url(&state.config.relay_url, &tenant, "/events");
-    let (pubkey, event_id_bytes) = verify_bridge_auth(
+    let urls = nip98_expected_urls(
+        &state.config.relay_url,
+        state.config.remote_relay_url.as_deref(),
+        &tenant,
+        "/events",
+    );
+    let (pubkey, event_id_bytes) = verify_bridge_auth_with_options_for_urls(
         &headers,
         "POST",
-        &url,
+        &urls,
         Some(&body),
         state.config.require_auth_token,
+        false,
     )?;
     let pubkey_hex = pubkey.to_hex();
 
@@ -904,13 +982,19 @@ pub async fn query_events(
             )
         })?;
 
-    let url = nip98_expected_url(&state.config.relay_url, &tenant, "/query");
-    let (pubkey, event_id_bytes) = verify_bridge_auth(
+    let urls = nip98_expected_urls(
+        &state.config.relay_url,
+        state.config.remote_relay_url.as_deref(),
+        &tenant,
+        "/query",
+    );
+    let (pubkey, event_id_bytes) = verify_bridge_auth_with_options_for_urls(
         &headers,
         "POST",
-        &url,
+        &urls,
         Some(&body),
         state.config.require_auth_token,
+        false,
     )?;
     let pubkey_hex = pubkey.to_hex();
 
@@ -1347,13 +1431,19 @@ pub async fn count_events(
             )
         })?;
 
-    let url = nip98_expected_url(&state.config.relay_url, &tenant, "/count");
-    let (pubkey, event_id_bytes) = verify_bridge_auth(
+    let urls = nip98_expected_urls(
+        &state.config.relay_url,
+        state.config.remote_relay_url.as_deref(),
+        &tenant,
+        "/count",
+    );
+    let (pubkey, event_id_bytes) = verify_bridge_auth_with_options_for_urls(
         &headers,
         "POST",
-        &url,
+        &urls,
         Some(&body),
         state.config.require_auth_token,
+        false,
     )?;
     let pubkey_hex = pubkey.to_hex();
 
@@ -2086,9 +2176,20 @@ async fn authorize_moderation_read(
         Some(q) if !q.is_empty() => format!("{path}?{q}"),
         _ => path.to_string(),
     };
-    let url = nip98_expected_url(&state.config.relay_url, &tenant, &path_with_query);
-    let (pubkey, event_id_bytes) =
-        verify_bridge_auth(headers, "GET", &url, None, state.config.require_auth_token)?;
+    let urls = nip98_expected_urls(
+        &state.config.relay_url,
+        state.config.remote_relay_url.as_deref(),
+        &tenant,
+        &path_with_query,
+    );
+    let (pubkey, event_id_bytes) = verify_bridge_auth_with_options_for_urls(
+        headers,
+        "GET",
+        &urls,
+        None,
+        state.config.require_auth_token,
+        false,
+    )?;
     check_nip98_replay(state, &tenant, event_id_bytes).await?;
     let pubkey_bytes = pubkey.to_bytes().to_vec();
 
@@ -2844,6 +2945,51 @@ mod tests {
             nip42_expected_relay_url("ws://config.example", &tenant),
             "ws://host-a.example:3100",
             "ws:// dev config → ws:// URL"
+        );
+    }
+
+    #[test]
+    fn reverse_proxy_alias_is_limited_to_deployment_community() {
+        let deployment = TenantContext::resolved(
+            buzz_core::CommunityId::from_uuid(uuid::Uuid::new_v4()),
+            "localhost:3000".to_string(),
+        );
+        let other = TenantContext::resolved(
+            buzz_core::CommunityId::from_uuid(uuid::Uuid::new_v4()),
+            "other.example".to_string(),
+        );
+        let remote = Some("wss://buzz-dev.asaltyvet.com");
+
+        assert_eq!(
+            nip42_expected_relay_urls("ws://localhost:3000", remote, &deployment),
+            vec![
+                "ws://localhost:3000".to_string(),
+                "wss://buzz-dev.asaltyvet.com".to_string(),
+            ]
+        );
+        assert_eq!(
+            nip98_expected_urls("ws://localhost:3000", remote, &deployment, "/events"),
+            vec![
+                "http://localhost:3000/events".to_string(),
+                "https://buzz-dev.asaltyvet.com/events".to_string(),
+            ]
+        );
+        assert_eq!(
+            nip98_expected_urls(
+                "ws://localhost:3000",
+                remote,
+                &deployment,
+                "/moderation/reports?page=2"
+            )[1],
+            "https://buzz-dev.asaltyvet.com/moderation/reports?page=2"
+        );
+        assert_eq!(
+            nip42_expected_relay_urls("ws://localhost:3000", remote, &other),
+            vec!["ws://other.example".to_string()]
+        );
+        assert_eq!(
+            nip98_expected_urls("ws://localhost:3000", remote, &other, "/events"),
+            vec!["http://other.example/events".to_string()]
         );
     }
 

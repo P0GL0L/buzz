@@ -512,11 +512,12 @@ impl Config {
                     || parsed.host_str().is_none()
                     || !parsed.username().is_empty()
                     || parsed.password().is_some()
+                    || !matches!(parsed.path(), "" | "/")
                     || parsed.query().is_some()
                     || parsed.fragment().is_some()
                 {
                     return Err(ConfigError::InvalidValue(
-                        "BUZZ_REMOTE_RELAY_URL must be a credential-free wss:// URL without a query or fragment"
+                        "BUZZ_REMOTE_RELAY_URL must be a credential-free wss:// origin without a path, query, or fragment"
                             .to_string(),
                     ));
                 }
@@ -677,7 +678,39 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let relay_private_key = std::env::var("BUZZ_RELAY_PRIVATE_KEY").ok();
+        let relay_private_key = match std::env::var("BUZZ_RELAY_PRIVATE_KEY_FILE") {
+            Ok(path) if !path.trim().is_empty() => {
+                let path = std::path::PathBuf::from(path.trim());
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    let metadata = std::fs::metadata(&path).map_err(|error| {
+                        ConfigError::InvalidValue(format!(
+                            "cannot read BUZZ_RELAY_PRIVATE_KEY_FILE {}: {error}",
+                            path.display()
+                        ))
+                    })?;
+                    if metadata.permissions().mode() & 0o077 != 0 {
+                        return Err(ConfigError::InvalidValue(format!(
+                            "BUZZ_RELAY_PRIVATE_KEY_FILE {} must not be accessible by group or others",
+                            path.display()
+                        )));
+                    }
+                }
+                Some(
+                    std::fs::read_to_string(&path)
+                        .map_err(|error| {
+                            ConfigError::InvalidValue(format!(
+                                "cannot read BUZZ_RELAY_PRIVATE_KEY_FILE {}: {error}",
+                                path.display()
+                            ))
+                        })?
+                        .trim()
+                        .to_string(),
+                )
+            }
+            _ => std::env::var("BUZZ_RELAY_PRIVATE_KEY").ok(),
+        };
 
         let uds_path = std::env::var("BUZZ_UDS_PATH")
             .ok()

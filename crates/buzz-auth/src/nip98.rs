@@ -130,6 +130,33 @@ pub fn verify_nip98_event(
     Ok(event.pubkey)
 }
 
+/// Verify NIP-98 authentication against one of a bounded set of request URLs.
+///
+/// The accepted URLs must come from trusted deployment configuration. This is
+/// intended for a fixed reverse-proxy origin plus the loopback origin, not for
+/// arbitrary `Forwarded` or `X-Forwarded-*` header values.
+pub fn verify_nip98_event_for_urls(
+    event_json: &str,
+    expected_urls: &[String],
+    expected_method: &str,
+    body: Option<&[u8]>,
+) -> Result<nostr::PublicKey, AuthError> {
+    if expected_urls.is_empty() {
+        return Err(AuthError::Nip98Invalid(
+            "no configured request URL".to_string(),
+        ));
+    }
+
+    let mut last_error = AuthError::Nip98Invalid("URL mismatch".to_string());
+    for expected_url in expected_urls {
+        match verify_nip98_event(event_json, expected_url, expected_method, body) {
+            Ok(pubkey) => return Ok(pubkey),
+            Err(error) => last_error = error,
+        }
+    }
+    Err(last_error)
+}
+
 /// Normalize a URL for comparison.
 ///
 /// - Lowercases scheme and host (already done by the `url` crate).
@@ -313,5 +340,20 @@ mod tests {
         // And identity still holds — same host on both sides verifies.
         let json3 = make_nip98_event(&keys, loopback_url, TEST_METHOD, None, None);
         assert!(verify_nip98_event(&json3, loopback_url, TEST_METHOD, None).is_ok());
+    }
+
+    #[test]
+    fn configured_public_alias_is_accepted_without_accepting_other_hosts() {
+        let keys = Keys::generate();
+        let public = "https://buzz-dev.example.com/events";
+        let json = make_nip98_event(&keys, public, "POST", None, None);
+        let allowed = vec![
+            "http://localhost:3000/events".to_string(),
+            public.to_string(),
+        ];
+        assert!(verify_nip98_event_for_urls(&json, &allowed, "POST", None).is_ok());
+
+        let denied = vec!["http://localhost:3000/events".to_string()];
+        assert!(verify_nip98_event_for_urls(&json, &denied, "POST", None).is_err());
     }
 }

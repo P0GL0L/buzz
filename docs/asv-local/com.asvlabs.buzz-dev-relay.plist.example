@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.asvlabs.buzz-dev-relay</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/absolute/path/to/buzz/scripts/run-asv-buzz-relay.sh</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>/absolute/path/to/private/logs/relay.log</string>
+  <key>StandardErrorPath</key>
+  <string>/absolute/path/to/private/logs/relay.error.log</string>
+</dict>
+</plist>

@@ -73,7 +73,12 @@ enum Command {
     /// List all relay members.
     ListMembers,
     /// Generate a new Nostr keypair (for bootstrapping).
-    GenerateKey,
+    GenerateKey {
+        /// Write only the secret key to a new mode-0600 file instead of stdout.
+        /// Fails if the target already exists.
+        #[arg(long)]
+        secret_file: Option<std::path::PathBuf>,
+    },
     /// Run pending database migrations.
     Migrate,
     /// Inspect deployment-wide Buzz product feedback.
@@ -129,8 +134,25 @@ async fn main() {
 
 async fn run(cli: Cli) -> Result<i32> {
     match cli.command {
-        Command::GenerateKey => {
+        Command::GenerateKey { secret_file } => {
             let keys = Keys::generate();
+            if let Some(path) = secret_file {
+                use std::io::Write as _;
+                use std::os::unix::fs::OpenOptionsExt as _;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .mode(0o600)
+                    .open(&path)
+                    .map_err(|error| {
+                        anyhow::anyhow!("cannot create {}: {error}", path.display())
+                    })?;
+                writeln!(file, "{}", keys.secret_key().display_secret())?;
+                file.sync_all()?;
+                println!("Public key: {}", keys.public_key().to_hex());
+                println!("Secret key written to {} (mode 0600)", path.display());
+                return Ok(0);
+            }
             println!("Public key:  {}", keys.public_key().to_hex());
             println!("Secret key:  {}", keys.secret_key().display_secret());
             println!("\nSet BUZZ_PRIVATE_KEY to the secret key to use this identity.");
