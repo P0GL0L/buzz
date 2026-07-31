@@ -102,28 +102,45 @@ bounded HTTP(S)-only navigation, observable history/loading/title state,
 downloads routed back into the artifact reader, DOM/text extraction, selector
 click/type, scrolling, immediate stop and clear controls, an active-controller
 indicator, and a redacted local audit stream. The iframe remains the explicit
-fallback when the native surface is unavailable. Screenshot requests currently
-return a structured unsupported result because the safe cross-platform Tauri
-webview API does not expose page capture; they do not claim success.
+fallback when the native surface is unavailable. The milestone retains one
+persistent session and defers tabs. On macOS, visible-region capture uses the
+validated workspace rectangle and returns explicit permission, inactive-window,
+occlusion, or capture failures; a failed request never fabricates an image.
+Successful screenshots and downloads become immutable artifacts in the active
+thread.
 
 ### Voice dictation
 
 Dictation is a composer action, not a destination, tab, or autonomous agent
-capability. The composer gains one microphone control with four explicit
-states: idle, recording, transcribing, and recoverable error. A visible timer,
-input-level indicator, stop/cancel controls, and active-agent/user ownership
-make capture state unambiguous. The resulting transcript is inserted as an
-editable draft and is never sent automatically.
+capability. The composer gains one microphone control and a composer-scoped
+`Command-Shift-D` tap-toggle with five explicit states: idle, recording,
+transcribing, cancelled, and recoverable error. A visible timer, input-level
+indicator, stop/cancel controls, and active-agent/user ownership make capture
+state unambiguous. The resulting transcript is inserted at the current editor
+selection as an editable draft and is never sent automatically.
 
-Audio capture is bounded by duration and byte limits. Raw audio is held in
-ephemeral application storage by default and deleted after a successful
-transcription unless the user explicitly retains or attaches it. Transcription
-uses a provider-neutral command boundary so a local engine can be preferred and
-an authenticated remote provider can be selected without placing tokens in
-Buzz records, logs, process arguments, or relay events. Permission denial,
-missing runtime, offline operation, timeout, cancellation, and empty speech are
-separate structured outcomes. Typed composition remains available in every
+Audio capture is bounded to two minutes per session, 30 seconds of continuous
+speech per recognition chunk, and the existing bounded PCM queue. Raw audio is
+ephemeral and is never posted to the relay. This milestone uses the existing
+local English Parakeet model only; provider transcription is deferred.
+Permission denial, model missing/downloading, offline operation, timeout,
+cancellation, empty speech, device loss, and a concurrent huddle microphone
+are separate structured outcomes. Typed composition remains available in every
 failure state.
+
+### Artifact sessions and revisions
+
+The workspace groups a message attachment, generated agent result, browser
+download, screenshot, and each later revision into one thread-bound artifact
+session. The original bytes are immutable. A revision is a new signed message
+attachment with a stable artifact identifier, monotonically increasing
+version, parent reference, SHA-256 digest, source class, signer, thread
+reference, and optional task correlation ID. Message edits never overwrite
+artifact bytes or silently rewrite revision history.
+
+Revision history stays in the originating thread and the contextual workspace
+for this milestone. There is no global artifact-library destination, new tab,
+or separate card-wall home.
 
 ### Provider connections
 
