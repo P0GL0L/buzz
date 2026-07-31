@@ -326,6 +326,7 @@ pub(crate) fn apply_runtime_env(
     let provider_id = match runtime_command {
         "grok" => Some("xai"),
         "gemini" => Some("google-enterprise"),
+        "buzz-antigravity-acp" => Some("google-personal"),
         _ => None,
     };
     if provider_id
@@ -346,6 +347,13 @@ pub(crate) fn apply_runtime_env(
             let home = provider_home(app, "gemini")?;
             ensure_private_dir(&home)?;
             command.env("GEMINI_CLI_HOME", home);
+        }
+        "buzz-antigravity-acp" => {
+            let home = provider_home(app, "antigravity")?;
+            ensure_private_dir(&home)?;
+            command.env("HOME", home);
+            command.env("AGY_CLI_DISABLE_AUTO_UPDATE", "true");
+            command.env("BUZZ_ANTIGRAVITY_CLI", antigravity_binary(app)?);
         }
         _ => {}
     }

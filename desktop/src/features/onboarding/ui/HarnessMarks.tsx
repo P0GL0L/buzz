@@ -56,11 +56,42 @@ function GeminiMark({ className }: MarkProps) {
   );
 }
 
+/// Project-authored orbit mark for the Antigravity adapter. This is a neutral
+/// runtime glyph, not a Google trademark asset.
+function AntigravityMark({ className }: MarkProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      role="img"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="12" cy="12" fill="currentColor" r="2.5" />
+      <path
+        d="M4.1 9.25C5.35 4.8 9.9 2.2 14.35 3.45M19.9 14.75c-1.25 4.45-5.8 7.05-10.25 5.8"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="2"
+      />
+      <path
+        d="m3.65 5.9.45 3.35 3.2-1.1M20.35 18.1l-.45-3.35-3.2 1.1"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
 /// Theme-adaptive inline marks, keyed by runtime/preset id. Consulted before
 /// the bitmap logo maps in `RuntimeIcon`. Codex deliberately has no entry:
 /// the OpenAI blossom was removed from simple-icons v16 at the vendor's
 /// request, so Codex renders RuntimeIcon's neutral terminal-glyph fallback.
 export const RUNTIME_MARKS: Record<string, React.FC<MarkProps>> = {
+  antigravity: AntigravityMark,
   cursor: CursorMark,
   gemini: GeminiMark,
   goose: GooseMark,

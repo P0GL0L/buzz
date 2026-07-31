@@ -1566,6 +1566,15 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         underlying_cli: None,
     },
     PresetHarness {
+        id: "antigravity",
+        label: "Google Antigravity",
+        command: "buzz-antigravity-acp",
+        args: &[],
+        install_instructions_url: "https://antigravity.google/docs/cli/install",
+        install_hint: "Buzz runs each personal-plan Antigravity request as one bounded stream-json task through its bundled ACP adapter.",
+        underlying_cli: Some("agy"),
+    },
+    PresetHarness {
         id: "opencode",
         label: "OpenCode",
         command: "opencode",
@@ -1619,10 +1628,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
     },
 ];
 
-/// Return the static preset harness definitions as `HarnessDefinition` values.
-///
-/// Used by `warm_harness_registry_from_dir` to seed the loaded-harness registry
-/// at startup before the frontend triggers a full discovery run.
+/// Preset definitions used to warm the harness registry before discovery.
 pub(crate) fn preset_harness_definitions(
 ) -> Vec<crate::managed_agents::custom_harnesses::HarnessDefinition> {
     PRESET_HARNESSES
@@ -1641,23 +1647,16 @@ pub(crate) fn preset_harness_definitions(
         .collect()
 }
 
-/// Return the static slice of preset harness IDs.
-///
-/// Used by `check_id_collision` in `custom_harnesses` to derive the reserved-ID
-/// set from the single source of truth (`PRESET_HARNESSES`) rather than a
-/// hand-maintained copy.  Adding a preset automatically reserves its ID.
+/// Preset IDs reserved by custom harness collision checks.
 pub(crate) fn preset_harness_ids() -> &'static [&'static str] {
-    // `PRESET_HARNESSES` is `'static`; we project its `id` fields.
-    // Computed once via OnceLock to avoid repeated allocations on hot paths.
+    // Computed once from the static preset catalog.
     use std::sync::OnceLock;
     static IDS: OnceLock<Vec<&'static str>> = OnceLock::new();
     IDS.get_or_init(|| PRESET_HARNESSES.iter().map(|p| p.id).collect())
         .as_slice()
 }
 
-/// Discover all ACP runtimes, optionally merging user-defined custom harnesses
-/// from `custom_harnesses_dir`.
-///
+/// Discover all ACP runtimes and optionally merge user-defined harnesses.
 /// This is the primary entry point used by the Tauri command layer. It:
 /// 1. Builds entries for all compiled-in (`Builtin`) runtimes.
 /// 2. Runs auth probes in parallel.
