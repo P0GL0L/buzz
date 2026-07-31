@@ -769,6 +769,8 @@ pub fn run() {
             list_skill_registry,
             build_skill_request,
             review_signed_skill_result,
+            review_signed_browser_action,
+            review_signed_browser_action_result,
             open_workspace_browser,
             update_workspace_browser_bounds,
             navigate_workspace_browser,
