@@ -1737,6 +1737,21 @@ Example:\n  buzz skills scan --host vision-macbook --runtime codex \
         /// Exact canonical skill ID
         skill_id: String,
     },
+    /// Promote an installed observation after verifying an owner-signed result
+    ApplyReceipt {
+        /// Canonical local registry to update
+        #[arg(long)]
+        registry: PathBuf,
+        /// JSON-encoded signed Nostr event carrying skill-result/v1
+        #[arg(long)]
+        receipt: PathBuf,
+        /// Updated canonical output path (default: update --registry in place)
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Updated relay-safe output path
+        #[arg(long)]
+        relay_out: Option<PathBuf>,
+    },
     /// Publish signed, searchable relay-safe records to a private channel
     Publish {
         /// Relay-safe registry JSON file
@@ -1772,6 +1787,51 @@ Example:\n  buzz skills scan --host vision-macbook --runtime codex \
         #[arg(long)]
         correlation_id: Option<String>,
         /// Build and print the request without sending
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Return a signed result correlated to a skill-route/v1 request
+    Result {
+        /// Private channel UUID containing the route request
+        #[arg(long)]
+        channel: String,
+        /// Route request event ID; the result is posted as its signed reply
+        #[arg(long)]
+        reply_to: String,
+        /// Route request correlation UUID
+        #[arg(long)]
+        correlation_id: String,
+        /// Exact canonical skill ID
+        #[arg(long)]
+        skill_id: String,
+        /// Owner-observed skill version or registry version reference
+        #[arg(long)]
+        skill_version: String,
+        /// SHA-256 content reference for the executed skill
+        #[arg(long)]
+        skill_hash: String,
+        /// Abstract execution class, such as codex, hermes, or app-runtime
+        #[arg(long)]
+        execution_host_class: String,
+        /// completed | offline | denied | expired | degraded | unreachable
+        #[arg(long)]
+        state: String,
+        /// Bounded non-secret evidence summary
+        #[arg(long)]
+        evidence_summary: String,
+        /// Structured failure reason; required unless state is completed
+        #[arg(long)]
+        failure_reason: Option<String>,
+        /// Requesting agent pubkey to mention in the reply
+        #[arg(long)]
+        requester: String,
+        /// Confirm that the owning runtime discovered this skill
+        #[arg(long, default_value_t = false)]
+        runtime_discovered: bool,
+        /// Confirm that non-secret dependency and connector probes passed
+        #[arg(long, default_value_t = false)]
+        dependencies_probed: bool,
+        /// Build and print the result without sending
         #[arg(long, default_value_t = false)]
         dry_run: bool,
     },
@@ -1884,7 +1944,10 @@ async fn run(cli: Cli) -> Result<(), CliError> {
         };
     }
     if let Cmd::Skills(ref sub) = cli.command {
-        if !matches!(sub, SkillsCmd::Publish { .. } | SkillsCmd::Route { .. }) {
+        if !matches!(
+            sub,
+            SkillsCmd::Publish { .. } | SkillsCmd::Route { .. } | SkillsCmd::Result { .. }
+        ) {
             return commands::skills::dispatch_local(sub);
         }
     }

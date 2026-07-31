@@ -12,6 +12,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
+use nostr::{Event, JsonUtil};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -101,6 +102,18 @@ struct SkillObservation {
     runtime_identity: String,
     source_host: String,
     verification: VerificationEvidence,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    verification_receipt: Option<VerificationReceipt>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VerificationReceipt {
+    correlation_id: String,
+    event_id: String,
+    expires_at: String,
+    signer: String,
+    skill_hash: String,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -505,10 +518,18 @@ fn scan_registry(
                     .map(|value| sanitize_summary(value))
                     .collect()
             };
+            // Discovery of a skill root proves installation, not callability.
+            // A requested `callable` source is deliberately held at installed
+            // until `apply-receipt` validates an owner-signed bounded result.
+            let observed_state = if source.state == InstallationState::Callable {
+                InstallationState::Installed
+            } else {
+                source.state
+            };
             let observation = SkillObservation {
-                availability: availability_for_state(source.state),
+                availability: availability_for_state(observed_state),
                 entrypoint: path.to_string_lossy().into_owned(),
-                installation_state: source.state,
+                installation_state: observed_state,
                 invocation_owner: invocation_owner.to_string(),
                 observed_at: observed_at.clone(),
                 runtime_identity: runtime_identity.to_string(),
@@ -516,7 +537,7 @@ fn scan_registry(
                 verification: VerificationEvidence {
                     method: "host-root-observation".into(),
                     status: match source.state {
-                        InstallationState::Callable => "callable-root-observed",
+                        InstallationState::Callable => "awaiting-signed-verification",
                         InstallationState::Installed => "installed-not-invoked",
                         InstallationState::Catalogued => "catalogue-only",
                         InstallationState::Degraded => "degraded",
@@ -526,6 +547,7 @@ fn scan_registry(
                     observed_at: observed_at.clone(),
                     evidence: None,
                 },
+                verification_receipt: None,
             };
             records
                 .entry(key)
@@ -750,6 +772,318 @@ struct RouteRequest {
     version: u8,
 }
 
+#[derive(Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum SkillCompletionState {
+    Completed,
+    Offline,
+    Denied,
+    Expired,
+    Degraded,
+    Unreachable,
+}
+
+impl SkillCompletionState {
+    fn parse(value: &str) -> Result<Self, CliError> {
+        match value {
+            "completed" => Ok(Self::Completed),
+            "offline" => Ok(Self::Offline),
+            "denied" => Ok(Self::Denied),
+            "expired" => Ok(Self::Expired),
+            "degraded" => Ok(Self::Degraded),
+            "unreachable" => Ok(Self::Unreachable),
+            _ => Err(CliError::Usage(format!(
+                "invalid result state '{value}' (expected completed, offline, denied, expired, degraded, or unreachable)"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct VerificationProofs {
+    runtime_discovered: bool,
+    dependencies_probed: bool,
+    bounded_verification: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct SkillRouteResult {
+    completed_at: String,
+    completion_state: SkillCompletionState,
+    correlation_id: String,
+    evidence_summary: String,
+    execution_host_class: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_reason: Option<String>,
+    proofs: VerificationProofs,
+    request_event_id: String,
+    signer: String,
+    skill_hash: String,
+    skill_id: String,
+    skill_version: String,
+    version: u8,
+}
+
+struct SkillResultParams<'a> {
+    channel: &'a str,
+    reply_to: &'a str,
+    correlation_id: &'a str,
+    skill_id: &'a str,
+    skill_version: &'a str,
+    skill_hash: &'a str,
+    execution_host_class: &'a str,
+    state: &'a str,
+    evidence_summary: &'a str,
+    failure_reason: Option<&'a str>,
+    requester: &'a str,
+    runtime_discovered: bool,
+    dependencies_probed: bool,
+    dry_run: bool,
+}
+
+fn validate_sha256_reference(value: &str) -> Result<(), CliError> {
+    let digest = value.strip_prefix("sha256:").unwrap_or(value);
+    if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(CliError::Usage(
+            "--skill-hash must be a 64-character SHA-256 hex value, optionally prefixed with sha256:"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+fn build_skill_result(
+    signer: String,
+    params: &SkillResultParams<'_>,
+) -> Result<SkillRouteResult, CliError> {
+    validate_hex64(&signer)?;
+    validate_hex64(params.requester)?;
+    validate_hex64(params.reply_to)?;
+    validate_sha256_reference(params.skill_hash)?;
+    let correlation_id = Uuid::parse_str(params.correlation_id)
+        .map_err(|error| CliError::Usage(format!("invalid correlation id: {error}")))?
+        .to_string();
+    let completion_state = SkillCompletionState::parse(params.state)?;
+    let failure_reason = params
+        .failure_reason
+        .map(sanitize_summary)
+        .filter(|value| !value.is_empty());
+    if completion_state == SkillCompletionState::Completed && failure_reason.is_some() {
+        return Err(CliError::Usage(
+            "--failure-reason must be omitted for a completed result".into(),
+        ));
+    }
+    if completion_state != SkillCompletionState::Completed && failure_reason.is_none() {
+        return Err(CliError::Usage(
+            "--failure-reason is required for a non-completed result".into(),
+        ));
+    }
+    if completion_state == SkillCompletionState::Completed
+        && (!params.runtime_discovered || !params.dependencies_probed)
+    {
+        return Err(CliError::Usage(
+            "completed verification requires --runtime-discovered and --dependencies-probed".into(),
+        ));
+    }
+    let skill_id = normalize_identifier(params.skill_id);
+    if skill_id.is_empty() || skill_id != params.skill_id {
+        return Err(CliError::Usage(
+            "--skill-id must be a normalized canonical identifier".into(),
+        ));
+    }
+    let execution_host_class = normalize_identifier(params.execution_host_class);
+    if execution_host_class.is_empty() {
+        return Err(CliError::Usage(
+            "--execution-host-class must be a non-sensitive abstract runtime class".into(),
+        ));
+    }
+    let evidence_summary = sanitize_summary(params.evidence_summary);
+    if evidence_summary.is_empty() {
+        return Err(CliError::Usage(
+            "--evidence-summary must be non-empty".into(),
+        ));
+    }
+    Ok(SkillRouteResult {
+        completed_at: Utc::now().to_rfc3339(),
+        proofs: VerificationProofs {
+            runtime_discovered: params.runtime_discovered,
+            dependencies_probed: params.dependencies_probed,
+            bounded_verification: completion_state == SkillCompletionState::Completed,
+        },
+        completion_state,
+        correlation_id,
+        evidence_summary,
+        execution_host_class,
+        failure_reason,
+        request_event_id: params.reply_to.to_string(),
+        signer,
+        skill_hash: format!(
+            "sha256:{}",
+            params
+                .skill_hash
+                .strip_prefix("sha256:")
+                .unwrap_or(params.skill_hash)
+        ),
+        skill_id,
+        skill_version: sanitize_summary(params.skill_version),
+        version: 1,
+    })
+}
+
+async fn cmd_result(client: &BuzzClient, params: SkillResultParams<'_>) -> Result<(), CliError> {
+    let result = build_skill_result(client.keys().public_key().to_hex(), &params)?;
+    let result_json = serde_json::to_string_pretty(&result)
+        .map_err(|error| CliError::Other(format!("failed to serialize skill result: {error}")))?;
+    if params.dry_run {
+        println!("{result_json}");
+        return Ok(());
+    }
+    let content = format!("skill-result/v1\n```json\n{result_json}\n```");
+    crate::commands::messages::cmd_send_message(
+        client,
+        crate::commands::messages::SendMessageParams {
+            channel_id: params.channel.to_string(),
+            content,
+            kind: None,
+            reply_to: Some(params.reply_to.to_string()),
+            broadcast: false,
+            files: vec![],
+            mentions: vec![params.requester.to_string()],
+        },
+    )
+    .await
+}
+
+fn parse_signed_skill_result(path: &Path) -> Result<(Event, SkillRouteResult), CliError> {
+    let raw = fs::read_to_string(path)
+        .map_err(|error| CliError::Other(format!("failed to read {}: {error}", path.display())))?;
+    let event = Event::from_json(raw)
+        .map_err(|error| CliError::Usage(format!("invalid signed receipt event: {error}")))?;
+    event.verify().map_err(|error| {
+        CliError::Usage(format!("receipt signature verification failed: {error}"))
+    })?;
+    let body = event
+        .content
+        .strip_prefix("skill-result/v1")
+        .ok_or_else(|| CliError::Usage("receipt is not a skill-result/v1 event".into()))?
+        .trim();
+    let body = body
+        .strip_prefix("```json")
+        .and_then(|value| value.strip_suffix("```"))
+        .map(str::trim)
+        .unwrap_or(body);
+    let result: SkillRouteResult = serde_json::from_str(body)
+        .map_err(|error| CliError::Usage(format!("invalid skill-result/v1 payload: {error}")))?;
+    if result.version != 1 {
+        return Err(CliError::Usage(format!(
+            "unsupported skill result version {}",
+            result.version
+        )));
+    }
+    let signer = event.pubkey.to_hex();
+    if result.signer != signer {
+        return Err(CliError::Usage(
+            "skill result signer does not match the signed event".into(),
+        ));
+    }
+    Ok((event, result))
+}
+
+fn cmd_apply_receipt(
+    registry_path: &Path,
+    receipt_path: &Path,
+    out: Option<&Path>,
+    relay_out: Option<&Path>,
+) -> Result<(), CliError> {
+    let mut registry = load_canonical(registry_path)?;
+    let (event, result) = parse_signed_skill_result(receipt_path)?;
+    if result.completion_state != SkillCompletionState::Completed
+        || !result.proofs.runtime_discovered
+        || !result.proofs.dependencies_probed
+        || !result.proofs.bounded_verification
+    {
+        return Err(CliError::Usage(
+            "only a completed signed result with runtime, dependency, and bounded-task proofs can promote callability"
+                .into(),
+        ));
+    }
+    validate_sha256_reference(&result.skill_hash)?;
+    let completed_at = DateTime::parse_from_rfc3339(&result.completed_at)
+        .map_err(|error| CliError::Usage(format!("invalid receipt completion time: {error}")))?
+        .with_timezone(&Utc);
+    let ttl = i64::try_from(registry.ttl_seconds)
+        .ok()
+        .and_then(chrono::Duration::try_seconds)
+        .ok_or_else(|| CliError::Usage("registry TTL is out of range".into()))?;
+    let now = Utc::now();
+    if completed_at > now + chrono::Duration::minutes(5) || completed_at + ttl < now {
+        return Err(CliError::Usage(
+            "signed verification receipt is expired or from the future".into(),
+        ));
+    }
+    let mut promoted = 0usize;
+    for skill in &mut registry.skills {
+        if skill.skill_id != result.skill_id || skill.content_hash != result.skill_hash {
+            continue;
+        }
+        for observation in &mut skill.observations {
+            if observation.invocation_owner != result.signer
+                || observation.runtime_identity != result.execution_host_class
+            {
+                continue;
+            }
+            observation.installation_state = InstallationState::Callable;
+            observation.availability = Availability::Available;
+            observation.observed_at = result.completed_at.clone();
+            observation.verification = VerificationEvidence {
+                method: "signed-bounded-skill-result".into(),
+                status: "verified-callable".into(),
+                observed_at: result.completed_at.clone(),
+                evidence: Some(result.evidence_summary.clone()),
+            };
+            observation.verification_receipt = Some(VerificationReceipt {
+                correlation_id: result.correlation_id.clone(),
+                event_id: event.id.to_hex(),
+                expires_at: (completed_at + ttl).to_rfc3339(),
+                signer: result.signer.clone(),
+                skill_hash: result.skill_hash.clone(),
+            });
+            promoted += 1;
+        }
+    }
+    if promoted == 0 {
+        return Err(CliError::NotFound(
+            "receipt does not match a canonical skill hash, owner, and runtime observation".into(),
+        ));
+    }
+    registry.generated_at = now.to_rfc3339();
+    registry.registry_version = registry.registry_version.saturating_add(1);
+    registry.registry_revision.clear();
+    registry.registry_revision = canonical_digest(&registry)?;
+    let digest = canonical_digest(&registry)?;
+    let relay = relay_safe_projection(&registry, digest);
+    let canonical_path = out.unwrap_or(registry_path);
+    let relay_path = relay_out
+        .map(Path::to_path_buf)
+        .map(Ok)
+        .unwrap_or_else(|| registry_default_path("relay-safe.json"))?;
+    write_json(canonical_path, &registry)?;
+    write_json(&relay_path, &relay)?;
+    println!(
+        "{}",
+        serde_json::json!({
+            "promoted": promoted,
+            "receiptEventId": event.id.to_hex(),
+            "registryRevision": registry.registry_revision,
+            "canonical": canonical_path,
+            "relaySafe": relay_path,
+        })
+    );
+    Ok(())
+}
+
 fn select_route<'a>(
     registry: &'a RelaySafeRegistry,
     skill_id: &str,
@@ -955,9 +1289,15 @@ pub(crate) fn dispatch_local(command: &SkillsCmd) -> Result<(), CliError> {
             routable,
         } => cmd_list(registry, query.as_deref(), *routable),
         SkillsCmd::Show { registry, skill_id } => cmd_show(registry, skill_id),
-        SkillsCmd::Route { .. } | SkillsCmd::Publish { .. } => Err(CliError::Other(
-            "relay skill command reached local dispatcher".into(),
-        )),
+        SkillsCmd::ApplyReceipt {
+            registry,
+            receipt,
+            out,
+            relay_out,
+        } => cmd_apply_receipt(registry, receipt, out.as_deref(), relay_out.as_deref()),
+        SkillsCmd::Route { .. } | SkillsCmd::Result { .. } | SkillsCmd::Publish { .. } => Err(
+            CliError::Other("relay skill command reached local dispatcher".into()),
+        ),
     }
 }
 
@@ -996,6 +1336,43 @@ pub(crate) async fn dispatch_relay(
             channel,
             dry_run,
         } => cmd_publish(client, &registry, &channel, dry_run).await,
+        SkillsCmd::Result {
+            channel,
+            reply_to,
+            correlation_id,
+            skill_id,
+            skill_version,
+            skill_hash,
+            execution_host_class,
+            state,
+            evidence_summary,
+            failure_reason,
+            requester,
+            runtime_discovered,
+            dependencies_probed,
+            dry_run,
+        } => {
+            cmd_result(
+                client,
+                SkillResultParams {
+                    channel: &channel,
+                    reply_to: &reply_to,
+                    correlation_id: &correlation_id,
+                    skill_id: &skill_id,
+                    skill_version: &skill_version,
+                    skill_hash: &skill_hash,
+                    execution_host_class: &execution_host_class,
+                    state: &state,
+                    evidence_summary: &evidence_summary,
+                    failure_reason: failure_reason.as_deref(),
+                    requester: &requester,
+                    runtime_discovered,
+                    dependencies_probed,
+                    dry_run,
+                },
+            )
+            .await
+        }
         other => dispatch_local(&other),
     }
 }
@@ -1019,7 +1396,7 @@ mod tests {
     }
 
     #[test]
-    fn scan_deduplicates_content_and_preserves_observations() {
+    fn scan_deduplicates_content_but_holds_callability_for_signed_receipt() {
         let first = tempfile::tempdir().unwrap();
         let second = tempfile::tempdir().unwrap();
         fixture_skill(first.path(), "review", "Review a change");
@@ -1035,7 +1412,7 @@ mod tests {
         assert_eq!(relay.skills.len(), 2);
         assert_eq!(
             relay.skills.iter().filter(|record| record.routable).count(),
-            1
+            0
         );
     }
 
@@ -1071,6 +1448,7 @@ mod tests {
                 observed_at: "2020-01-01T00:00:00Z".into(),
                 evidence: None,
             },
+            verification_receipt: None,
         };
         assert_eq!(
             effective_availability(&observation, Utc::now(), DEFAULT_TTL_SECONDS),
@@ -1101,6 +1479,121 @@ mod tests {
             }],
         };
         assert!(select_route(&registry, "codex:review", None).is_err());
+    }
+
+    #[test]
+    fn skill_result_requires_all_three_callable_proofs_and_redacts_paths() {
+        let params = SkillResultParams {
+            channel: "channel",
+            reply_to: &"e".repeat(64),
+            correlation_id: "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+            skill_id: "codex:review",
+            skill_version: "1",
+            skill_hash: &"a".repeat(64),
+            execution_host_class: "codex",
+            state: "completed",
+            evidence_summary: "Executed /Users/person/private/SKILL.md successfully",
+            failure_reason: None,
+            requester: &"b".repeat(64),
+            runtime_discovered: true,
+            dependencies_probed: true,
+            dry_run: true,
+        };
+        let result = build_skill_result("c".repeat(64), &params).unwrap();
+        assert_eq!(result.completion_state, SkillCompletionState::Completed);
+        assert!(result.proofs.runtime_discovered);
+        assert!(result.proofs.dependencies_probed);
+        assert!(result.proofs.bounded_verification);
+        assert!(!result.evidence_summary.contains("/Users/"));
+
+        let missing_probe = SkillResultParams {
+            dependencies_probed: false,
+            ..params
+        };
+        assert!(build_skill_result("c".repeat(64), &missing_probe).is_err());
+    }
+
+    #[test]
+    fn unavailable_skill_result_requires_a_structured_reason() {
+        let params = SkillResultParams {
+            channel: "channel",
+            reply_to: &"e".repeat(64),
+            correlation_id: "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+            skill_id: "hermes:browser",
+            skill_version: "1",
+            skill_hash: &"a".repeat(64),
+            execution_host_class: "hermes",
+            state: "offline",
+            evidence_summary: "Owner runtime did not answer the bounded probe",
+            failure_reason: None,
+            requester: &"b".repeat(64),
+            runtime_discovered: false,
+            dependencies_probed: false,
+            dry_run: true,
+        };
+        assert!(build_skill_result("c".repeat(64), &params).is_err());
+    }
+
+    #[test]
+    fn signed_result_promotes_only_the_matching_owner_observation() {
+        use nostr::{EventBuilder, Keys, Kind};
+
+        let root = tempfile::tempdir().unwrap();
+        fixture_skill(root.path(), "review", "Review a change");
+        let keys = Keys::generate();
+        let owner = keys.public_key().to_hex();
+        let sources = vec![format!(
+            "callable:team-indexed:codex:{}",
+            root.path().display()
+        )];
+        let (canonical, _) = scan_registry(&sources, "host-a", "codex", &owner, 1, 300).unwrap();
+        let skill = &canonical.skills[0];
+        assert_eq!(
+            skill.observations[0].installation_state,
+            InstallationState::Installed
+        );
+
+        let params = SkillResultParams {
+            channel: "channel",
+            reply_to: &"e".repeat(64),
+            correlation_id: "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+            skill_id: &skill.skill_id,
+            skill_version: "1",
+            skill_hash: &skill.content_hash,
+            execution_host_class: "codex",
+            state: "completed",
+            evidence_summary: "Bounded verification completed",
+            failure_reason: None,
+            requester: &"b".repeat(64),
+            runtime_discovered: true,
+            dependencies_probed: true,
+            dry_run: true,
+        };
+        let result = build_skill_result(owner, &params).unwrap();
+        let content = format!(
+            "skill-result/v1\n```json\n{}\n```",
+            serde_json::to_string_pretty(&result).unwrap()
+        );
+        let event = EventBuilder::new(Kind::TextNote, content)
+            .sign_with_keys(&keys)
+            .unwrap();
+        let canonical_path = root.path().join("canonical.json");
+        let receipt_path = root.path().join("receipt.json");
+        let relay_path = root.path().join("relay-safe.json");
+        write_json(&canonical_path, &canonical).unwrap();
+        fs::write(&receipt_path, event.as_json()).unwrap();
+
+        cmd_apply_receipt(&canonical_path, &receipt_path, None, Some(&relay_path)).unwrap();
+        let updated = load_canonical(&canonical_path).unwrap();
+        assert_eq!(
+            updated.skills[0].observations[0].installation_state,
+            InstallationState::Callable
+        );
+        assert!(updated.skills[0].observations[0]
+            .verification_receipt
+            .is_some());
+        let relay = load_relay_safe(&relay_path).unwrap();
+        assert!(relay.skills[0].routable);
     }
 
     #[test]

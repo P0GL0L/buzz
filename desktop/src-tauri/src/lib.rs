@@ -767,6 +767,8 @@ pub fn run() {
             verify_provider_connection,
             disconnect_provider_connection,
             list_skill_registry,
+            build_skill_request,
+            review_signed_skill_result,
             open_workspace_browser,
             update_workspace_browser_bounds,
             navigate_workspace_browser,

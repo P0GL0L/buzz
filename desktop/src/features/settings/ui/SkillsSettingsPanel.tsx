@@ -4,7 +4,9 @@ import { CircleAlert, RefreshCw, Route, Search } from "lucide-react";
 
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
+import { SkillActions } from "./SkillActions";
 import { filterSkillRecords, type SkillRecord } from "./skillRegistryLogic";
+import { SkillResultReview } from "./SkillResultReview";
 
 type SkillRegistryView = {
   version: number;
@@ -229,6 +231,7 @@ export function SkillsSettingsPanel() {
                     Current callable evidence; route to the named owner.
                   </p>
                 ) : null}
+                <SkillActions skill={skill} />
               </article>
             ))}
             {skills.length === 0 ? (
@@ -237,6 +240,7 @@ export function SkillsSettingsPanel() {
               </p>
             ) : null}
           </div>
+          <SkillResultReview />
         </>
       ) : null}
     </section>
