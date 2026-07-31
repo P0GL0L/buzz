@@ -13,6 +13,7 @@ mod media_proxy;
 mod mesh_llm;
 #[cfg(not(feature = "mesh-llm"))]
 mod mesh_llm_stubs;
+mod microphone_lease;
 mod migration;
 #[cfg(test)]
 mod model_tests;
@@ -358,6 +359,8 @@ pub fn run() {
         .manage(BuilderlabSession::default())
         .manage(BuilderlabLogin::default())
         .manage(commands::pairing::PairingHandle::new())
+        .manage(DictationRuntime::default())
+        .manage(microphone_lease::MicrophoneLeaseRuntime::default())
         .manage(WorkspaceBrowserRuntime::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
@@ -873,6 +876,12 @@ pub fn run() {
             get_note,
             get_note_reactions,
             get_liked_notes,
+            start_composer_dictation,
+            push_dictation_pcm,
+            finish_composer_dictation,
+            cancel_composer_dictation,
+            get_composer_dictation_status,
+            reset_composer_dictation_status,
             start_huddle,
             join_huddle,
             leave_huddle,

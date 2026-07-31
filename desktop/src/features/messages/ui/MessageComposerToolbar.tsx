@@ -1,7 +1,17 @@
 import * as React from "react";
 import type { Editor } from "@tiptap/react";
 import { AnimatePresence, motion } from "motion/react";
-import { ALargeSmall, ArrowUp, AtSign, Paperclip, X } from "lucide-react";
+import {
+  ALargeSmall,
+  ArrowUp,
+  AtSign,
+  Loader2,
+  Mic,
+  Paperclip,
+  Square,
+  X,
+} from "lucide-react";
+import type { ComposerDictationPhase } from "@/features/messages/lib/composerDictation";
 
 import { Button } from "@/shared/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
@@ -26,6 +36,7 @@ export const MessageComposerToolbar = React.memo(
     isFormattingOpen,
     isSending,
     isUploading,
+    dictationPhase = "idle",
     onCaptureSelection,
     onEmojiPickerOpenChange,
     onEmojiSelect,
@@ -33,6 +44,7 @@ export const MessageComposerToolbar = React.memo(
     onLinkButton,
     onOpenMentionPicker,
     onPaperclip,
+    onDictationToggle,
     sendDisabled,
   }: {
     composerDisabled: boolean;
@@ -43,6 +55,7 @@ export const MessageComposerToolbar = React.memo(
     isFormattingOpen: boolean;
     isSending: boolean;
     isUploading: boolean;
+    dictationPhase?: ComposerDictationPhase;
     onCaptureSelection: () => void;
     onEmojiPickerOpenChange: (open: boolean) => void;
     onEmojiSelect: (emoji: string) => void;
@@ -50,6 +63,7 @@ export const MessageComposerToolbar = React.memo(
     onLinkButton: () => void;
     onOpenMentionPicker: () => void;
     onPaperclip: () => void;
+    onDictationToggle?: () => void;
     sendDisabled: boolean;
   }) {
     return (
@@ -231,6 +245,46 @@ export const MessageComposerToolbar = React.memo(
 
         <div className="flex items-center gap-2">
           {extraActions}
+          {onDictationToggle ? (
+            <Tooltip disableHoverableContent>
+              <TooltipTrigger asChild>
+                <Button
+                  aria-label={
+                    dictationPhase === "recording"
+                      ? "Stop dictation"
+                      : dictationPhase === "transcribing"
+                        ? "Transcribing dictation"
+                        : "Start voice dictation"
+                  }
+                  aria-pressed={dictationPhase === "recording"}
+                  data-testid="composer-dictation-toggle"
+                  disabled={
+                    composerDisabled || dictationPhase === "transcribing"
+                  }
+                  onClick={onDictationToggle}
+                  onMouseDown={onCaptureSelection}
+                  size="icon"
+                  type="button"
+                  variant={
+                    dictationPhase === "recording" ? "destructive" : "ghost"
+                  }
+                >
+                  {dictationPhase === "recording" ? (
+                    <Square className="h-4 w-4 fill-current" />
+                  ) : dictationPhase === "transcribing" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mic />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {dictationPhase === "recording"
+                  ? "Stop dictation"
+                  : "Voice dictation (⌘⇧D)"}
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
           <Button
             aria-label={isSending ? "Sending" : "Send message"}
             className="rounded-full"

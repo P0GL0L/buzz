@@ -66,18 +66,17 @@ pub use transcription::{set_huddle_transcription_enabled, start_stt_pipeline};
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
-use std::sync::{atomic::Ordering, Arc};
-use tauri::State;
-use uuid::Uuid;
-
+use crate::microphone_lease::{MicrophoneLeaseRuntime, MICROPHONE_OWNER_HUDDLE};
 use crate::{app_state::AppState, events, relay::submit_event};
-
 use pipeline::{maybe_start_stt_pipeline, maybe_start_tts_pipeline, post_connect_setup};
 use relay_api::{
     count_human_members, fetch_channel_members, parse_channel_uuid, validate_pubkey_hex,
     MAX_HUDDLE_AGENTS,
 };
-
+use std::sync::{atomic::Ordering, Arc};
+use tauri::State;
+use uuid::Uuid;
+type MicrophoneState<'a> = State<'a, MicrophoneLeaseRuntime>;
 fn normalize_huddle_channel_name(candidate: Option<String>, fallback: &str) -> String {
     let normalized = candidate
         .unwrap_or_default()
@@ -163,6 +162,7 @@ pub async fn start_huddle(
     member_pubkeys: Vec<String>,
     channel_name: Option<String>,
     state: State<'_, AppState>,
+    microphone: MicrophoneState<'_>,
 ) -> Result<HuddleJoinInfo, String> {
     // Validate inputs at the Tauri boundary.
     if member_pubkeys.len() > MAX_HUDDLE_AGENTS {
@@ -184,7 +184,7 @@ pub async fn start_huddle(
         }
         deduped
     };
-
+    let mut microphone_claim = microphone.claim(MICROPHONE_OWNER_HUDDLE, "a huddle")?;
     // Transition to Creating.
     {
         let mut hs = state.huddle()?;
@@ -299,6 +299,7 @@ pub async fn start_huddle(
                 return Err(e);
             }
 
+            microphone_claim.retain();
             Ok(HuddleJoinInfo {
                 ephemeral_channel_id,
             })
@@ -338,7 +339,9 @@ pub async fn join_huddle(
     parent_channel_id: String,
     ephemeral_channel_id: String,
     state: State<'_, AppState>,
+    microphone: MicrophoneState<'_>,
 ) -> Result<HuddleJoinInfo, String> {
+    let mut microphone_claim = microphone.claim(MICROPHONE_OWNER_HUDDLE, "a huddle")?;
     // Transition to Connecting.
     {
         let mut hs = state.huddle()?;
@@ -383,7 +386,7 @@ pub async fn join_huddle(
         state.emit_huddle_state_changed();
         return Err(e);
     }
-
+    microphone_claim.retain();
     Ok(HuddleJoinInfo {
         ephemeral_channel_id,
     })
@@ -393,7 +396,7 @@ pub async fn join_huddle(
 ///
 /// Used by both `leave_huddle` and `end_huddle` to avoid duplicating the
 /// shutdown-then-reset sequence.
-fn teardown_huddle(state: &AppState) -> Result<(), String> {
+fn teardown_huddle(state: &AppState, microphone: &MicrophoneLeaseRuntime) -> Result<(), String> {
     // Take pipeline handles out of state and drop the lock before shutdown.
     // Pipeline Drop impls join worker threads — this avoids blocking while
     // the mutex is held (ONNX inference can take ~200ms).
@@ -426,6 +429,7 @@ fn teardown_huddle(state: &AppState) -> Result<(), String> {
     // Drop the Arcs here (implicit) — triggers thread join via Drop.
     drop(old_stt);
     drop(old_tts);
+    microphone.release(MICROPHONE_OWNER_HUDDLE);
     // Notify frontend that we're back to Idle.
     state.emit_huddle_state_changed();
     Ok(())
@@ -502,7 +506,10 @@ async fn remove_huddle_agents(ephemeral_channel_id: &str, state: &AppState) {
 ///
 /// The relay emits kind:48102 (participant left) when the audio WS disconnects.
 #[tauri::command]
-pub async fn leave_huddle(state: State<'_, AppState>) -> Result<(), String> {
+pub async fn leave_huddle(
+    state: State<'_, AppState>,
+    microphone: MicrophoneState<'_>,
+) -> Result<(), String> {
     let (parent_channel_id, ephemeral_channel_id) = {
         let mut hs = state.huddle()?;
         if hs.phase == HuddlePhase::Idle {
@@ -549,9 +556,7 @@ pub async fn leave_huddle(state: State<'_, AppState>) -> Result<(), String> {
             }
         }
     }
-
-    teardown_huddle(&state)?;
-
+    teardown_huddle(&state, &microphone)?;
     Ok(())
 }
 
@@ -563,7 +568,11 @@ pub async fn leave_huddle(state: State<'_, AppState>) -> Result<(), String> {
 /// 3. Shut down the STT pipeline (Fix 5).
 /// 4. Clear local huddle state.
 #[tauri::command]
-pub async fn end_huddle(force: Option<bool>, state: State<'_, AppState>) -> Result<(), String> {
+pub async fn end_huddle(
+    force: Option<bool>,
+    state: State<'_, AppState>,
+    microphone: MicrophoneState<'_>,
+) -> Result<(), String> {
     let (parent_channel_id, ephemeral_channel_id) = {
         let mut hs = state.huddle()?;
         if hs.phase == HuddlePhase::Idle {
@@ -585,7 +594,7 @@ pub async fn end_huddle(force: Option<bool>, state: State<'_, AppState>) -> Resu
 
     emit_end_and_archive(&parent_channel_id, &ephemeral_channel_id, &state).await;
 
-    teardown_huddle(&state)?;
+    teardown_huddle(&state, &microphone)?;
 
     Ok(())
 }

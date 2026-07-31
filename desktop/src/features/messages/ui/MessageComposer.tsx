@@ -38,9 +38,11 @@ import {
 } from "@/features/messages/lib/useRichTextEditor";
 import { useLinkEditor } from "@/features/messages/lib/useLinkEditor";
 import { useComposerSpoilerParticles } from "@/features/messages/lib/useComposerSpoilerParticles";
+import { useMessageComposerDictation } from "@/features/messages/lib/useMessageComposerDictation";
 import { useTypingBroadcast } from "@/features/messages/useTypingBroadcast";
 import { getBuzzCodeBlockClipboardText } from "@/shared/lib/codeBlockClipboard";
 import { cn } from "@/shared/lib/cn";
+import { ComposerDictationStatus } from "./ComposerDictationStatus";
 import { ChannelAutocomplete } from "./ChannelAutocomplete";
 import { ComposerReplyEditBanner } from "./ComposerReplyEditBanner";
 import { ComposerAttachments, DropZoneOverlay } from "./ComposerAttachments";
@@ -103,12 +105,10 @@ function MessageComposerImpl({
   >(() => new Set());
   const spoileredAttachmentUrlsRef = React.useRef(spoileredAttachmentUrls);
   spoileredAttachmentUrlsRef.current = spoileredAttachmentUrls;
-
   const handleFormattingToggle = React.useCallback((pressed: boolean) => {
     if (pressed) setIsEmojiPickerOpen(false);
     setIsFormattingOpen(pressed);
   }, []);
-
   const drafts = useDrafts();
   const identityQuery = useIdentityQuery();
   const effectiveDraftKey = draftKey ?? channelId;
@@ -141,13 +141,11 @@ function MessageComposerImpl({
     typingParentEventId,
     typingRootEventId,
   );
-
   // We pass a custom setter that both updates React state AND inserts
   // markdown into the Tiptap editor when media upload completes.
   const internalMedia = useMediaUpload();
   const media = mediaController ?? internalMedia;
   const ownsDropZone = mediaController === undefined;
-
   // Draft-persist lifecycle: restore/clear content + imeta + spoilered urls on
   // key change, and persist the outgoing draft in the cleanup. The StrictMode
   // fix lives inside this hook — see useDraftPersistSnapshot.ts.
@@ -179,7 +177,6 @@ function MessageComposerImpl({
     channelLinks.clearChannels();
     emojiAutocomplete.clearEmojis();
   }, [effectiveDraftKey]);
-
   const disabledRef = React.useRef(disabled);
   const isSendingRef = React.useRef(isSending);
   const isUploadingRef = React.useRef(media.isUploading);
@@ -267,7 +264,11 @@ function MessageComposerImpl({
       }
     },
   });
-
+  const dictation = useMessageComposerDictation({
+    disabled,
+    editor: richText.editor,
+    scrollToBottom: scrollComposerToBottom,
+  });
   const linkEditor = useLinkEditor(richText);
   syncContentRefFromEditorRef.current = () => {
     const markdown = richText.getMarkdown();
@@ -278,7 +279,6 @@ function MessageComposerImpl({
   onLinkSelectionChangeRef.current = linkEditor.showFromCursor;
   onLinkShortcutRef.current = linkEditor.openFromShortcut;
   useComposerSpoilerParticles(richText.editor, composerScrollRef);
-
   const persistentMentionHydration = usePersistentAgentMentionHydration({
     audienceScope,
     hydrationKey: effectiveDraftKey,
@@ -292,7 +292,6 @@ function MessageComposerImpl({
     persistentMentionHydration,
   );
   persistentMentionHydrationRef.current = persistentMentionHydration;
-
   const mentionSendFlow = useMentionSendFlow({
     channelId,
     channelLinks,
@@ -322,7 +321,6 @@ function MessageComposerImpl({
         : undefined,
     resolvePostSendContent: persistentMentionHydration.resolvePostSendContent,
   });
-
   // biome-ignore lint/correctness/useExhaustiveDependencies: editTarget?.id is the trigger
   React.useEffect(() => {
     if (editTarget) {
@@ -412,7 +410,6 @@ function MessageComposerImpl({
       richText.getPlainTextAndCursor,
     ],
   );
-
   const applyChannelInsert = React.useCallback(
     (suggestion: ChannelSuggestion) => {
       const { cursor } = richText.getPlainTextAndCursor();
@@ -473,7 +470,6 @@ function MessageComposerImpl({
     },
     [richText.editor, mentions.clearMentions, customEmoji],
   );
-
   // ── @ mention picker (toolbar button) ───────────────────────────────
   const openMentionPicker = React.useCallback(() => {
     if (!richText.editor) return;
@@ -504,7 +500,6 @@ function MessageComposerImpl({
     richText.focus,
     mentions.updateMentionQuery,
   ]);
-
   // ── Submit message ──────────────────────────────────────────────────
   const submitMessage = React.useCallback(async () => {
     const trimmed = syncComposerContentFromEditor().trim();
@@ -905,6 +900,7 @@ function MessageComposerImpl({
                 "backdrop-blur-md dark:backdrop-blur-xl",
             )}
             data-testid="message-composer"
+            onKeyDownCapture={dictation.onKeyDownCapture}
             onDragEnter={ownsDropZone ? media.handleDragEnter : undefined}
             onDragLeave={ownsDropZone ? media.handleDragLeave : undefined}
             onDragOver={ownsDropZone ? media.handleDragOver : undefined}
@@ -957,6 +953,8 @@ function MessageComposerImpl({
               </div>
             ) : null}
 
+            <ComposerDictationStatus dictation={dictation} />
+
             {(media.pendingImeta.length > 0 || media.isUploading) && (
               <div className="mb-2 flex items-center gap-2">
                 <ComposerAttachments
@@ -995,6 +993,7 @@ function MessageComposerImpl({
               isFormattingOpen={isFormattingOpen}
               isSending={isSending}
               isUploading={media.isUploading}
+              dictationPhase={dictation.phase}
               onCaptureSelection={handleCaptureSelection}
               onEmojiPickerOpenChange={setIsEmojiPickerOpen}
               onEmojiSelect={insertEmoji}
@@ -1002,6 +1001,7 @@ function MessageComposerImpl({
               onLinkButton={linkEditor.openFromToolbar}
               onOpenMentionPicker={openMentionPicker}
               onPaperclip={handlePaperclipClick}
+              onDictationToggle={dictation.toggle}
               sendDisabled={sendDisabled}
             />
           </form>
