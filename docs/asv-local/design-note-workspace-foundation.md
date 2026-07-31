@@ -111,6 +111,26 @@ records, snapshots, audit logs, and provider status IPC contain no OAuth token.
 An installed binary is never represented as an authenticated or verified
 connection without a successful provider-owned consent and runtime proof.
 
+Personal-plan Antigravity tasks use the bundled
+`buzz-antigravity-acp` adapter. Each ACP prompt launches a new `agy -p` process
+with `--output-format stream-json`; the adapter never uses `--continue` or
+reuses a provider conversation. It accepts text-only bounded input, allows one
+active task, bounds JSONL frames, stderr, final output, and wall time, and
+terminates the provider process on ACP cancellation. Only the terminal
+`result` event becomes an agent message. The official `agy` executable and its
+provider-owned authentication state remain in the Buzz Dev provider scope.
+
+### Skills catalog
+
+Settings → Skills reads only the local relay-safe projection. Search and
+filters cover capability, skill identity, owner identity, runtime class,
+installation state, availability, and observation time. The desktop reader
+revalidates the bounded schema and recomputes expiry on load; an expired
+observation becomes `unknown` and cannot remain routable. Missing or malformed
+inventories surface an explicit owning-host scan/validation recovery state.
+The UI never opens the canonical registry and therefore cannot expose local
+paths, host details, permission evidence, or connector configuration.
+
 ## Budgets and defaults
 
 - No new global tab bar.

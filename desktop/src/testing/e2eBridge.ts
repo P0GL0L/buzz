@@ -10480,6 +10480,45 @@ export function maybeInstallE2eTauriMocks() {
           providerId: (payload as { providerId: string }).providerId,
           status: "disconnected",
         };
+      case "list_skill_registry":
+        return {
+          version: 1,
+          generatedAt: "2026-07-30T16:00:00Z",
+          registryDigest: `sha256:${"a".repeat(64)}`,
+          registryRevision: `sha256:${"b".repeat(64)}`,
+          registryVersion: 1,
+          ttlSeconds: 86400,
+          skills: [
+            {
+              abstractRequirements: ["browser access"],
+              availability: "available",
+              capabilities: ["Inspect and operate a browser page"],
+              displayName: "Browser control",
+              expired: false,
+              installationState: "callable",
+              observedAt: "2026-07-30T15:55:00Z",
+              owningAgent: "c".repeat(64),
+              registryVersion: 1,
+              routable: true,
+              runtimeClass: "codex",
+              skillId: "codex:browser-control",
+            },
+            {
+              abstractRequirements: ["workbook access"],
+              availability: "unknown",
+              capabilities: ["Prepare a workbook"],
+              displayName: "Spreadsheets",
+              expired: true,
+              installationState: "installed",
+              observedAt: "2026-07-20T12:00:00Z",
+              owningAgent: "d".repeat(64),
+              registryVersion: 1,
+              routable: false,
+              runtimeClass: "hermes",
+              skillId: "hermes:spreadsheets",
+            },
+          ],
+        };
       case "save_custom_harness":
         return handleSaveCustomHarness(
           payload as Parameters<typeof handleSaveCustomHarness>[0],

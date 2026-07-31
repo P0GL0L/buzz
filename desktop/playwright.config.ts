@@ -131,6 +131,7 @@ export default defineConfig({
         "**/harness-management.spec.ts",
         "**/harness-catalog-screenshots.spec.ts",
         "**/provider-connections.spec.ts",
+        "**/skill-registry.spec.ts",
         "**/inline-custom-harness.spec.ts",
       ],
       use: {

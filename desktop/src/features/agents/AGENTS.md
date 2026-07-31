@@ -126,6 +126,17 @@ with a TypeScript lookup table or an id comparison in a component.
     from persona and agent overrides so a definition cannot silently fall back
     to a provider-global credential profile. Provider status exposed over IPC
     is non-secret metadata only; tokens remain in provider-owned storage.
+13. **Personal-plan Google tasks are isolated.** The
+    `buzz-antigravity-acp` harness creates one bounded Antigravity print-mode
+    process for each ACP prompt and consumes its `stream-json` result. It never
+    uses `--continue`, reuses a provider conversation, or silently falls back
+    to Gemini. Rust injects the app-scoped Antigravity home and official `agy`
+    path at spawn time.
+14. **The desktop Skills surface is relay-safe only.** It reads the bounded
+    `relay-safe.json` projection, revalidates it, and recomputes observation
+    expiry. Do not point the UI at the canonical registry or add local paths,
+    host details, permission evidence, or connector configuration to its IPC
+    record.
 
 ## The tests that enforce this
 

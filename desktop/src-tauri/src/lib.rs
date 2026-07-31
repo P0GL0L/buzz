@@ -762,6 +762,7 @@ pub fn run() {
             list_provider_connections,
             connect_provider_connection,
             disconnect_provider_connection,
+            list_skill_registry,
             open_workspace_browser,
             update_workspace_browser_bounds,
             navigate_workspace_browser,

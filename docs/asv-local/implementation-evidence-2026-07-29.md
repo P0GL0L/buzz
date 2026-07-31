@@ -253,6 +253,19 @@ POGsAlien/Cody remains excluded.
 - Provider runtime homes and allowlisted app-owned binaries resolve under the
   Buzz Dev application-data directory. Production Buzz and provider-global
   credential profiles are not migration sources.
+- The bundled `buzz-antigravity-acp` bridge converts personal-plan Google
+  requests into isolated `agy -p --output-format stream-json` tasks. It has no
+  session-resume path, permits one active task, rejects non-text or oversized
+  input, caps JSONL frames and output, enforces a wall-time limit, and kills
+  the child process on cancellation.
+- The adapter catalog entry remains unavailable until the official `agy`
+  executable is present in the Buzz Dev provider directory. Runtime launch
+  injects only the scoped provider home and executable path; it does not place
+  OAuth material in arguments, agent definitions, logs, or relay records.
+- Settings → Skills now renders the local relay-safe inventory with search and
+  installation, availability, and runtime filters. The native reader caps and
+  validates the projection, excludes canonical fields by construction, and
+  demotes expired observations to non-routable `unknown`.
 - Rust check and warnings-denied Clippy passed for the provider boundary.
   Desktop typecheck, file-size and text-scale checks passed. The focused
   provider settings Playwright gate passed on isolated port `4192`.
