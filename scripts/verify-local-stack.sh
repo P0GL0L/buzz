@@ -72,6 +72,17 @@ if [[ "$with_relay" == "1" ]]; then
   curl --fail --silent --show-error http://localhost:3000/health >/dev/null
   curl --fail --silent --show-error http://localhost:3000/_readiness >/dev/null
 
+  relay_info=$(
+    curl --fail --silent --show-error \
+      -H 'Accept: application/nostr+json' \
+      http://localhost:3000/
+  )
+  pairing_relay_url=$(jq -r '.pairing_relay_url // empty' <<<"$relay_info")
+  [[ "$pairing_relay_url" =~ ^wss://[^/]+(/.*)?$ ]] || {
+    echo "relay does not advertise a phone-reachable WSS pairing relay" >&2
+    exit 1
+  }
+
   relay_headers=""
   relay_curl_status=0
   relay_headers=$(
@@ -93,5 +104,7 @@ if [[ "$with_relay" == "1" ]]; then
   }
 fi
 
-printf '{"containers":"healthy","migrationState":"%s","localCommunities":%s,"relayChecked":%s}\n' \
-  "$migration_state" "$community_count" "$([[ "$with_relay" == "1" ]] && echo true || echo false)"
+printf '{"containers":"healthy","migrationState":"%s","localCommunities":%s,"relayChecked":%s,"pairingRelayConfigured":%s}\n' \
+  "$migration_state" "$community_count" \
+  "$([[ "$with_relay" == "1" ]] && echo true || echo false)" \
+  "$([[ "$with_relay" == "1" ]] && echo true || echo false)"
