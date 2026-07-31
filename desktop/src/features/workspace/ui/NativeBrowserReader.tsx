@@ -22,6 +22,7 @@ import { Button } from "@/shared/ui/button";
 import { requestOpenWorkspaceResource } from "../openWorkspaceResourceEvent";
 import {
   boundsForElement,
+  type BrowserCaptureResult,
   type BrowserPageExtraction,
   type NativeWorkspaceBrowserState,
 } from "../lib/workspaceBrowser";
@@ -80,11 +81,12 @@ export function NativeBrowserReader({
       void invokeTauri("navigate_workspace_browser", {
         url: next,
         actor: null,
+        correlationId: resource.correlationId ?? null,
       });
     } else {
       setFallback(fallbackState(next));
     }
-  }, [mode, resource.url]);
+  }, [mode, resource.correlationId, resource.url]);
 
   React.useEffect(() => {
     let active = true;
@@ -99,6 +101,7 @@ export function NativeBrowserReader({
         url: initialUrl,
         bounds: boundsForElement(element),
         actor: null,
+        correlationId: resource.correlationId ?? null,
       })
         .then((state) => {
           if (!active || state.mode !== "native") {
@@ -138,26 +141,43 @@ export function NativeBrowserReader({
     ).then((dispose) => {
       unlistenPopup = dispose;
     });
-    void listen<{ success: boolean; path?: string; filename?: string }>(
-      "workspace-browser-download",
-      (event) => {
-        if (
-          event.payload.success &&
-          event.payload.path &&
-          event.payload.filename
-        ) {
-          toast.success("Browser download saved to the ASV Buzz workspace");
-          requestOpenWorkspaceResource({
-            kind: "artifact",
-            url: "",
-            localPath: event.payload.path,
-            filename: event.payload.filename,
-          });
-        } else {
-          toast.error("Browser download failed");
-        }
-      },
-    ).then((dispose) => {
+    void listen<{
+      success: boolean;
+      path?: string;
+      filename?: string;
+      artifact?: {
+        artifactId: string;
+        artifactVersion: number;
+        artifactSource: "browser-download";
+        mime: string;
+        size: number;
+        sha256: string;
+      };
+    }>("workspace-browser-download", (event) => {
+      if (
+        event.payload.success &&
+        event.payload.path &&
+        event.payload.filename
+      ) {
+        toast.success("Browser download saved to the ASV Buzz workspace");
+        requestOpenWorkspaceResource({
+          kind: "artifact",
+          url: "",
+          localPath: event.payload.path,
+          filename: event.payload.filename,
+          artifactId: event.payload.artifact?.artifactId,
+          version: event.payload.artifact?.artifactVersion,
+          source: "browser-download",
+          mime: event.payload.artifact?.mime,
+          size: event.payload.artifact?.size,
+          sha256: event.payload.artifact?.sha256,
+          threadId: resource.threadId,
+          correlationId: resource.correlationId,
+        });
+      } else {
+        toast.error("Browser download failed");
+      }
+    }).then((dispose) => {
       unlistenDownload = dispose;
     });
 
@@ -174,7 +194,7 @@ export function NativeBrowserReader({
       unlistenDownload?.();
       void invokeTauri("close_workspace_browser").catch(() => {});
     };
-  }, [initialUrl, updateBounds]);
+  }, [initialUrl, resource.correlationId, resource.threadId, updateBounds]);
 
   React.useEffect(() => {
     if (mode !== "native" || !contentRef.current) return;
@@ -195,6 +215,7 @@ export function NativeBrowserReader({
       void invokeTauri("navigate_workspace_browser", {
         url: normalized,
         actor: null,
+        correlationId: resource.correlationId ?? null,
       }).catch((error: unknown) =>
         toast.error(
           error instanceof Error ? error.message : "Navigation failed",
@@ -217,7 +238,10 @@ export function NativeBrowserReader({
   }
 
   function nativeAction(command: string) {
-    void invokeTauri(command, { actor: null }).catch((error: unknown) =>
+    void invokeTauri(command, {
+      actor: null,
+      correlationId: resource.correlationId ?? null,
+    }).catch((error: unknown) =>
       toast.error(
         error instanceof Error ? error.message : "Browser action failed",
       ),
@@ -417,7 +441,10 @@ export function NativeBrowserReader({
                   setExtracting(true);
                   void invokeTauri<BrowserPageExtraction>(
                     "extract_workspace_browser_page",
-                    { actor: null },
+                    {
+                      actor: null,
+                      correlationId: resource.correlationId ?? null,
+                    },
                   )
                     .then((result) =>
                       toast.success(
@@ -443,16 +470,54 @@ export function NativeBrowserReader({
               <Button
                 disabled={mode !== "native"}
                 onClick={() => {
-                  void invokeTauri<{ completionState: string; reason: string }>(
+                  void invokeTauri<BrowserCaptureResult>(
                     "capture_workspace_browser",
-                    { actor: null },
-                  ).then((result) => {
-                    if (result.completionState !== "completed") {
-                      toast.info("Screenshot unavailable", {
-                        description: result.reason,
-                      });
-                    }
-                  });
+                    {
+                      actor: null,
+                      correlationId: resource.correlationId ?? null,
+                    },
+                  )
+                    .then((result) => {
+                      if (
+                        result.completionState === "completed" &&
+                        result.localArtifactPath &&
+                        result.filename
+                      ) {
+                        requestOpenWorkspaceResource({
+                          kind: "artifact",
+                          url: "",
+                          localPath: result.localArtifactPath,
+                          filename: result.filename,
+                          mime: result.mimeType ?? "image/png",
+                          size: result.size,
+                          artifactId: result.sha256
+                            ? `sha256:${result.sha256}`
+                            : undefined,
+                          version: 1,
+                          source: "browser-screenshot",
+                          sha256: result.sha256,
+                          signer: result.actor,
+                          threadId: resource.threadId,
+                          correlationId:
+                            result.correlationId ?? resource.correlationId,
+                        });
+                        toast.success(
+                          "Browser screenshot added to the artifact workspace",
+                        );
+                      } else {
+                        toast.info("Screenshot unavailable", {
+                          description:
+                            result.reason ?? "The capture did not complete.",
+                        });
+                      }
+                    })
+                    .catch((error: unknown) =>
+                      toast.error(
+                        error instanceof Error
+                          ? error.message
+                          : "Screenshot failed",
+                      ),
+                    );
                 }}
                 size="xs"
                 type="button"
@@ -506,6 +571,11 @@ export function NativeBrowserReader({
                   {action.target ? (
                     <p className="mt-0.5 truncate text-muted-foreground">
                       {action.target}
+                    </p>
+                  ) : null}
+                  {action.correlationId ? (
+                    <p className="mt-0.5 truncate text-muted-foreground">
+                      Task {action.correlationId}
                     </p>
                   ) : null}
                 </li>

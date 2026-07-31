@@ -13,6 +13,22 @@ export type BrowserAction = {
   action: string;
   target?: string;
   outcome: string;
+  correlationId?: string;
+};
+
+export type BrowserCaptureResult = {
+  version: 1;
+  completionState: string;
+  reason?: string;
+  localArtifactPath?: string;
+  filename?: string;
+  mimeType?: string;
+  size?: number;
+  sha256?: string;
+  width?: number;
+  height?: number;
+  actor: string;
+  correlationId?: string;
 };
 
 export type NativeWorkspaceBrowserState = {

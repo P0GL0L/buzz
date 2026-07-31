@@ -1,6 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 import { installMockBridge } from "../helpers/bridge";
+import { onePagePdf } from "../helpers/pdf";
 
 const SHA = "9".repeat(64);
 
@@ -107,13 +108,14 @@ test("reader exercises Markdown, PDF, and malformed content with deterministic e
   const pdfUrl = "https://example.com/native-qa/brief.pdf";
   await page.route(pdfUrl, (route) =>
     route.fulfill({
-      body: "%PDF-1.4\n% deterministic Buzz QA fixture\n",
+      body: onePagePdf("Agent Lab PDF evidence"),
       contentType: "application/pdf",
     }),
   );
   await emitAttachment(page, "brief.pdf", "application/pdf", pdfUrl);
   await openFileCard(page, "brief.pdf");
   await expect(page.getByTestId("workspace-pdf-preview")).toBeVisible();
+  await expect(page.getByTestId("workspace-pdf-page")).toBeVisible();
   await page.screenshot({
     path: "test-results/native-qa/workspace-pdf.png",
   });

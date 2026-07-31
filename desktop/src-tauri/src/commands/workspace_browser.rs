@@ -19,6 +19,12 @@ const MAX_EXTRACTED_TEXT: usize = 250_000;
 const MAX_WORKSPACE_DOWNLOAD_BYTES: u64 = 50 * 1024 * 1024;
 const EVAL_TIMEOUT: Duration = Duration::from_secs(10);
 
+mod artifacts;
+mod capture;
+use artifacts::completed_download_metadata;
+pub(crate) use artifacts::read_workspace_browser_artifact;
+use capture::capture_visible_workspace_region;
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserBounds {
@@ -57,6 +63,7 @@ pub struct BrowserAction {
     action: String,
     target: Option<String>,
     outcome: String,
+    correlation_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -84,6 +91,7 @@ struct BrowserSession {
     history_index: usize,
     actions: VecDeque<BrowserAction>,
     pending_download: Option<PendingDownload>,
+    bounds: Option<BrowserBounds>,
     error: Option<String>,
     loaded_from_disk: bool,
 }
@@ -135,7 +143,16 @@ struct BrowserPageExtractionRaw {
 pub struct BrowserCaptureResult {
     version: u16,
     completion_state: &'static str,
-    reason: String,
+    reason: Option<String>,
+    local_artifact_path: Option<PathBuf>,
+    filename: Option<String>,
+    mime_type: Option<&'static str>,
+    size: Option<u64>,
+    sha256: Option<String>,
+    width: Option<u32>,
+    height: Option<u32>,
+    actor: String,
+    correlation_id: Option<String>,
 }
 
 fn browser_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -149,34 +166,8 @@ fn browser_downloads_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(browser_root(app)?.join("downloads"))
 }
 
-pub(crate) fn read_workspace_download(
-    app: &tauri::AppHandle,
-    requested_path: &Path,
-    max_bytes: u64,
-) -> Result<Vec<u8>, String> {
-    let downloads = browser_downloads_root(app)?;
-    ensure_private_dir(&downloads)?;
-    let downloads = downloads
-        .canonicalize()
-        .map_err(|error| format!("failed to resolve browser downloads: {error}"))?;
-    let path = requested_path
-        .canonicalize()
-        .map_err(|error| format!("browser download is unavailable: {error}"))?;
-    if !path.starts_with(&downloads) {
-        return Err("browser download is outside the ASV Buzz workspace".to_string());
-    }
-    let metadata = std::fs::symlink_metadata(&path)
-        .map_err(|error| format!("failed to inspect browser download: {error}"))?;
-    if !metadata.file_type().is_file() {
-        return Err("browser download is not a regular file".to_string());
-    }
-    if metadata.len() > max_bytes {
-        return Err(format!(
-            "browser download exceeds the {} MiB preview limit",
-            max_bytes / (1024 * 1024)
-        ));
-    }
-    std::fs::read(path).map_err(|error| format!("failed to read browser download: {error}"))
+fn browser_screenshots_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(browser_root(app)?.join("screenshots"))
 }
 
 fn ensure_private_dir(path: &Path) -> Result<(), String> {
@@ -323,6 +314,7 @@ fn record_action(
     action_name: &str,
     target: Option<String>,
     outcome: &str,
+    correlation_id: Option<&str>,
 ) {
     let action = BrowserAction {
         version: 1,
@@ -332,6 +324,7 @@ fn record_action(
         action: action_name.to_string(),
         target,
         outcome: outcome.to_string(),
+        correlation_id: correlation_id.map(|value| value.chars().take(128).collect()),
     };
     let _ = append_action_log(app, &action);
     if let Ok(mut session) = state.session.lock() {
@@ -491,6 +484,10 @@ fn build_webview(
                     let filename = pending
                         .map(|item| item.filename)
                         .unwrap_or_else(|| sanitized_filename(&url));
+                    let artifact = destination
+                        .as_deref()
+                        .filter(|_| success)
+                        .and_then(completed_download_metadata);
                     let _ = app_for_download.emit(
                         DOWNLOAD_EVENT,
                         serde_json::json!({
@@ -498,7 +495,8 @@ fn build_webview(
                             "url": redacted_url(&url),
                             "path": destination,
                             "filename": filename,
-                            "success": success
+                            "success": success,
+                            "artifact": artifact
                         }),
                     );
                     success
@@ -547,6 +545,7 @@ pub fn open_workspace_browser(
     url: String,
     bounds: BrowserBounds,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<WorkspaceBrowserState, String> {
     let parsed = validate_browser_url(&url)?;
     bounds.validate()?;
@@ -561,6 +560,9 @@ pub fn open_workspace_browser(
     } else {
         build_webview(&app, parsed.clone(), &bounds)?;
     }
+    if let Ok(mut session) = runtime.session.lock() {
+        session.bounds = Some(bounds);
+    }
     push_history(&app, &runtime, &parsed);
     record_action(
         &app,
@@ -569,6 +571,7 @@ pub fn open_workspace_browser(
         "open",
         Some(redacted_url(&parsed)),
         "accepted",
+        correlation_id.as_deref(),
     );
     runtime
         .session
@@ -580,9 +583,14 @@ pub fn open_workspace_browser(
 #[tauri::command]
 pub fn update_workspace_browser_bounds(
     app: tauri::AppHandle,
+    runtime: State<'_, WorkspaceBrowserRuntime>,
     bounds: BrowserBounds,
 ) -> Result<(), String> {
-    set_bounds(&browser_webview(&app)?, &bounds)
+    set_bounds(&browser_webview(&app)?, &bounds)?;
+    if let Ok(mut session) = runtime.session.lock() {
+        session.bounds = Some(bounds);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -591,6 +599,7 @@ pub fn navigate_workspace_browser(
     runtime: State<'_, WorkspaceBrowserRuntime>,
     url: String,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     let parsed = validate_browser_url(&url)?;
     browser_webview(&app)?
@@ -603,6 +612,7 @@ pub fn navigate_workspace_browser(
         "navigate",
         Some(redacted_url(&parsed)),
         "accepted",
+        correlation_id.as_deref(),
     );
     Ok(())
 }
@@ -613,11 +623,20 @@ fn eval_navigation(
     actor: Option<&str>,
     action: &str,
     script: &str,
+    correlation_id: Option<&str>,
 ) -> Result<(), String> {
     browser_webview(app)?
         .eval(script)
         .map_err(|error| format!("{action} failed: {error}"))?;
-    record_action(app, runtime, actor, action, None, "accepted");
+    record_action(
+        app,
+        runtime,
+        actor,
+        action,
+        None,
+        "accepted",
+        correlation_id,
+    );
     Ok(())
 }
 
@@ -626,8 +645,16 @@ pub fn workspace_browser_back(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
-    eval_navigation(&app, &runtime, actor.as_deref(), "back", "history.back()")
+    eval_navigation(
+        &app,
+        &runtime,
+        actor.as_deref(),
+        "back",
+        "history.back()",
+        correlation_id.as_deref(),
+    )
 }
 
 #[tauri::command]
@@ -635,6 +662,7 @@ pub fn workspace_browser_forward(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     eval_navigation(
         &app,
@@ -642,6 +670,7 @@ pub fn workspace_browser_forward(
         actor.as_deref(),
         "forward",
         "history.forward()",
+        correlation_id.as_deref(),
     )
 }
 
@@ -650,11 +679,20 @@ pub fn reload_workspace_browser(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     browser_webview(&app)?
         .reload()
         .map_err(|error| format!("reload failed: {error}"))?;
-    record_action(&app, &runtime, actor.as_deref(), "reload", None, "accepted");
+    record_action(
+        &app,
+        &runtime,
+        actor.as_deref(),
+        "reload",
+        None,
+        "accepted",
+        correlation_id.as_deref(),
+    );
     Ok(())
 }
 
@@ -663,8 +701,16 @@ pub fn stop_workspace_browser(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
-    eval_navigation(&app, &runtime, actor.as_deref(), "stop", "window.stop()")?;
+    eval_navigation(
+        &app,
+        &runtime,
+        actor.as_deref(),
+        "stop",
+        "window.stop()",
+        correlation_id.as_deref(),
+    )?;
     if let Ok(mut session) = runtime.session.lock() {
         session.loading = false;
     }
@@ -692,6 +738,7 @@ pub fn clear_workspace_browser_session(
         Some("Charles"),
         "clear-session",
         "sessionStorage.clear()",
+        None,
     )
 }
 
@@ -717,6 +764,7 @@ pub fn clear_workspace_browser_profile(
         "clear-profile",
         None,
         "completed",
+        None,
     );
     Ok(())
 }
@@ -745,6 +793,7 @@ pub async fn extract_workspace_browser_page(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<BrowserPageExtraction, String> {
     let script = format!(
         r#"(() => {{
@@ -781,6 +830,7 @@ pub async fn extract_workspace_browser_page(
         "extract",
         Some(result.url.clone()),
         "completed",
+        correlation_id.as_deref(),
     );
     Ok(result)
 }
@@ -792,6 +842,7 @@ async fn bounded_selector_action(
     action: &str,
     selector: &str,
     script: String,
+    correlation_id: Option<&str>,
 ) -> Result<(), String> {
     if selector.is_empty() || selector.len() > 2_000 {
         return Err("browser selector is empty or too long".to_string());
@@ -805,6 +856,7 @@ async fn bounded_selector_action(
         action,
         Some(selector.chars().take(300).collect()),
         outcome,
+        correlation_id,
     );
     if completed {
         Ok(())
@@ -819,6 +871,7 @@ pub async fn click_workspace_browser(
     runtime: State<'_, WorkspaceBrowserRuntime>,
     selector: String,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     let encoded =
         serde_json::to_string(&selector).map_err(|error| format!("invalid selector: {error}"))?;
@@ -831,6 +884,7 @@ pub async fn click_workspace_browser(
         format!(
             "(() => {{ const element = document.querySelector({encoded}); if (!element) return false; element.click(); return true; }})()"
         ),
+        correlation_id.as_deref(),
     )
     .await
 }
@@ -842,6 +896,7 @@ pub async fn type_workspace_browser(
     selector: String,
     text: String,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     if text.len() > 100_000 {
         return Err("browser input is too large".to_string());
@@ -859,6 +914,7 @@ pub async fn type_workspace_browser(
         format!(
             "(() => {{ const element = document.querySelector({encoded_selector}); if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element.isContentEditable)) return false; if (element.isContentEditable) element.textContent = {encoded_text}; else element.value = {encoded_text}; element.dispatchEvent(new InputEvent('input', {{ bubbles: true, inputType: 'insertText' }})); element.dispatchEvent(new Event('change', {{ bubbles: true }})); return true; }})()"
         ),
+        correlation_id.as_deref(),
     )
     .await
 }
@@ -870,6 +926,7 @@ pub fn scroll_workspace_browser(
     x: f64,
     y: f64,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> Result<(), String> {
     if !x.is_finite() || !y.is_finite() || x.abs() > 100_000.0 || y.abs() > 100_000.0 {
         return Err("invalid browser scroll distance".to_string());
@@ -880,6 +937,7 @@ pub fn scroll_workspace_browser(
         actor.as_deref(),
         "scroll",
         &format!("window.scrollBy({x}, {y})"),
+        correlation_id.as_deref(),
     )
 }
 
@@ -888,69 +946,45 @@ pub fn capture_workspace_browser(
     app: tauri::AppHandle,
     runtime: State<'_, WorkspaceBrowserRuntime>,
     actor: Option<String>,
+    correlation_id: Option<String>,
 ) -> BrowserCaptureResult {
+    let actor = actor
+        .as_deref()
+        .unwrap_or("Charles")
+        .trim()
+        .chars()
+        .take(80)
+        .collect::<String>();
+    let correlation_id = correlation_id
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.chars().take(128).collect::<String>());
+    let result = capture_visible_workspace_region(&app, &runtime, &actor, correlation_id.clone());
     record_action(
         &app,
         &runtime,
-        actor.as_deref(),
+        Some(&actor),
         "screenshot",
-        None,
-        "unsupported",
+        result
+            .local_artifact_path
+            .as_ref()
+            .map(|path| path.display().to_string()),
+        result.completion_state,
+        correlation_id.as_deref(),
     );
-    BrowserCaptureResult {
-        version: 1,
-        completion_state: "unsupported",
-        reason: "The current safe Tauri webview API does not expose a cross-platform page snapshot without platform-unsafe code. DOM/text extraction remains available.".to_string(),
-    }
+    result
 }
 
-/// Return bytes for a completed browser download after proving that the path is
-/// a regular file inside this ASV Buzz app's isolated browser download root.
+/// Return bytes for a browser download or screenshot after proving that the
+/// path is a regular file inside this ASV Buzz app's isolated browser roots.
 #[tauri::command]
 pub fn fetch_workspace_browser_download(
     app: tauri::AppHandle,
     path: PathBuf,
 ) -> Result<tauri::ipc::Response, String> {
-    read_workspace_download(&app, &path, MAX_WORKSPACE_DOWNLOAD_BYTES)
+    read_workspace_browser_artifact(&app, &path, MAX_WORKSPACE_DOWNLOAD_BYTES)
         .map(tauri::ipc::Response::new)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{redacted_url, validate_browser_url, BrowserBounds};
-
-    #[test]
-    fn browser_urls_are_http_only_and_sensitive_queries_are_redacted() {
-        assert!(validate_browser_url("file:///tmp/private").is_err());
-        assert!(validate_browser_url("javascript:alert(1)").is_err());
-        let url = validate_browser_url(
-            "https://user:pass@example.com/path?q=public&access_token=secret#fragment",
-        )
-        .unwrap();
-        let safe = redacted_url(&url);
-        assert!(safe.contains("q=public"));
-        assert!(safe.contains("access_token=%5Bredacted%5D"));
-        assert!(!safe.contains("pass"));
-        assert!(!safe.contains("fragment"));
-    }
-
-    #[test]
-    fn browser_bounds_reject_hidden_or_unbounded_children() {
-        assert!(BrowserBounds {
-            x: 10.0,
-            y: 10.0,
-            width: 800.0,
-            height: 600.0,
-        }
-        .validate()
-        .is_ok());
-        assert!(BrowserBounds {
-            x: -1.0,
-            y: 0.0,
-            width: 100.0,
-            height: 100.0,
-        }
-        .validate()
-        .is_err());
-    }
-}
+#[path = "workspace_browser/tests.rs"]
+mod tests;
