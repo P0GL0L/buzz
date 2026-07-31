@@ -146,7 +146,7 @@ export function NativeBrowserReader({
           event.payload.path &&
           event.payload.filename
         ) {
-          toast.success("Browser download saved to the Buzz Dev workspace");
+          toast.success("Browser download saved to the ASV Buzz workspace");
           requestOpenWorkspaceResource({
             kind: "artifact",
             url: "",
@@ -381,7 +381,7 @@ export function NativeBrowserReader({
             {mode === "connecting" ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Starting isolated Buzz Dev browser…
+                Starting isolated ASV Buzz browser…
               </>
             ) : (
               <span className="sr-only">Native browser active</span>
@@ -397,7 +397,7 @@ export function NativeBrowserReader({
               <div>
                 <p className="text-xs font-semibold">Browser action stream</p>
                 <p className="text-3xs text-muted-foreground">
-                  Persistent Buzz Dev audit; no credentials are recorded.
+                  Persistent ASV Buzz audit; no credentials are recorded.
                 </p>
               </div>
               <Button
@@ -478,7 +478,7 @@ export function NativeBrowserReader({
                 disabled={mode !== "native"}
                 onClick={() =>
                   void invokeTauri("clear_workspace_browser_profile").then(() =>
-                    toast.success("Buzz Dev browser profile cleared"),
+                    toast.success("ASV Buzz browser profile cleared"),
                   )
                 }
                 size="xs"

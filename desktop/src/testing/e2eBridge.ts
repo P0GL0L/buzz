@@ -11370,7 +11370,7 @@ export function maybeInstallE2eTauriMocks() {
               slides: [
                 {
                   number: 1,
-                  title: "Buzz Dev",
+                  title: "ASV Buzz",
                   body: ["Trusted agent collaboration"],
                   notes: ["Keep production isolated."],
                 },

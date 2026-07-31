@@ -2,7 +2,7 @@
 /// service, while standalone worktree launches may request a scoped dev service.
 ///
 /// The compiled value is required for packaged debug applications: launching
-/// `Buzz Dev.app` from Finder does not inherit the shell environment that built
+/// `ASV Buzz.app` from Finder does not inherit the shell environment that built
 /// it. A valid runtime override still wins for `tauri dev` and test instances.
 fn dev_keyring_service(runtime: Option<String>, compiled: Option<&str>) -> String {
     runtime

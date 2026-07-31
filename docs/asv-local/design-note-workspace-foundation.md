@@ -1,9 +1,9 @@
-# ASV Local Buzz — Workspace Foundation Design Note
+# ASV Buzz — Workspace Foundation Design Note
 
 ## Classification
 
 Platform target(s): macOS desktop through Tauri 2; semantic document previews remain portable
-App category & jobs-to-be-done: productivity; keep files, agent output, research, and collaboration inside the active Buzz thread
+App category & jobs-to-be-done: productivity; keep files, agent output, research, voice capture, and collaboration inside the active Buzz thread
 Selected navigation model (+ per-platform expression): rail-split-listdetail; existing desktop rail and timeline with a contextual right-side workspace
 Why this navigation fits the IA: the active conversation remains primary while one selected resource receives focused detail and controls
 Selected screen composition (per key screen): message timeline plus contextual split-on-large-screens artifact or browser detail
@@ -16,26 +16,39 @@ Tab bar: no new tab bar
 FAB: none
 Onboarding: none for this feature
 Forbidden defaults rejected (from the twelve tells): no reflexive five-tab bar, card wall, stat dashboard, blanket FAB, hidden primary navigation, onboarding carousel, identical-platform claim, wrapped-webview-as-native claim, happy-path-only states, modal-everything, unsafe chrome, or fixed type system
-Store-asset/screenshot provenance: captured-from-app @ `desktop/test-results/native-qa/workspace-office-preview.png`
-State design (loading, empty, error, offline, success) per key screen: explicit extraction loading, empty package, structured/rendered success, warning/truncation, malformed/encrypted/macro/oversized error, and original-download recovery
+Store-asset/screenshot provenance: A Salty Vet cutout mark from the published first-party asset at `https://asaltyvet.com/media/brand/a-salty-vet-logo-cutout.png`; workspace capture at `desktop/test-results/native-qa/workspace-office-preview.png`
+State design (loading, empty, error, offline, success) per key screen: explicit extraction or transcription loading, empty package or recording, structured/rendered/transcribed success, warning/truncation, malformed/encrypted/macro/oversized or microphone-denied error, offline state, and original-download or retained-audio recovery
 Motion / gesture / haptics budget: existing short panel transition only; no theatrical delays or new haptics
-Permissions strategy (just-in-time, primed, least-privilege, graceful-deny): same-relay media fetch only; no Office execution; sandboxed fidelity HTML; native open/download remain user actions
+Permissions strategy (just-in-time, primed, least-privilege, graceful-deny): same-relay media fetch only; no Office execution; sandboxed fidelity HTML; native open/download remain user actions; microphone permission is requested only when dictation starts and denial keeps typed composition available
 Accessibility plan (screen reader, Dynamic Type / font scale, contrast, reduce motion, target size): labelled controls, semantic buttons and tables, keyboard close/navigation, inherited Buzz type and contrast tokens; named-human screen-reader review pending
 Performance & battery risk: bounded compressed/expanded bytes, archive entries, XML parts, rows, cells, slides, assets, output text, and one blocking parser worker
-Implementation stack (per platform): Tauri 2 Rust commands, React 19 workspace UI, macOS Quick Look optional fidelity, semantic OOXML fallback
+Implementation stack (per platform): Tauri 2 Rust commands, React 19 workspace UI, macOS Quick Look optional fidelity, semantic OOXML fallback, bounded native audio capture, and a pluggable local/provider transcription boundary
 
 - Product category: productivity / social collaboration
 - Platform target: macOS desktop through the existing Tauri 2 application
-- Build surface: Buzz Desktop
+- Build surface: ASV Buzz, the isolated Buzz development desktop
 - Primary users: Charles and the private ASV agent team
 - Primary job: keep research, files, agent output, and collaboration inside the active Buzz context
 - Navigation model: existing desktop sidebar plus contextual right-side auxiliary workspace
 - Back behavior: closing the auxiliary workspace returns focus to the invoking link or file card; browser history stays inside the workspace pane
-- Store asset or screenshot provenance: none
+- Store asset or screenshot provenance: first-party A Salty Vet cutout mark from the published website asset
 
 Buzz Desktop is outside the current ADI verifier's iOS, Android, React Native,
 and installable-PWA platform matrix. This note applies the ADI composition and
 functional-truth constraints, but does not claim a machine-verified ADI pass.
+
+## Product identity
+
+The isolated desktop product is named **ASV Buzz**. The macOS display name,
+bundle filename, app-switcher label, permission copy, and development-only icon
+use that identity. The bundle identifier remains `xyz.block.buzz.app.dev`, the
+keyring service remains `buzz-desktop-dev.main`, and the application-support
+directory remains development-scoped. The rename must not migrate, copy,
+replace, or reset identity data.
+
+The app icon uses the first-party A Salty Vet cutout mark. It is generated into
+a development-only icon directory referenced only by the development Tauri
+configuration. The production Buzz icon set remains unchanged.
 
 ## Composition choices
 
@@ -92,6 +105,25 @@ indicator, and a redacted local audit stream. The iframe remains the explicit
 fallback when the native surface is unavailable. Screenshot requests currently
 return a structured unsupported result because the safe cross-platform Tauri
 webview API does not expose page capture; they do not claim success.
+
+### Voice dictation
+
+Dictation is a composer action, not a destination, tab, or autonomous agent
+capability. The composer gains one microphone control with four explicit
+states: idle, recording, transcribing, and recoverable error. A visible timer,
+input-level indicator, stop/cancel controls, and active-agent/user ownership
+make capture state unambiguous. The resulting transcript is inserted as an
+editable draft and is never sent automatically.
+
+Audio capture is bounded by duration and byte limits. Raw audio is held in
+ephemeral application storage by default and deleted after a successful
+transcription unless the user explicitly retains or attaches it. Transcription
+uses a provider-neutral command boundary so a local engine can be preferred and
+an authenticated remote provider can be selected without placing tokens in
+Buzz records, logs, process arguments, or relay events. Permission denial,
+missing runtime, offline operation, timeout, cancellation, and empty speech are
+separate structured outcomes. Typed composition remains available in every
+failure state.
 
 ### Provider connections
 

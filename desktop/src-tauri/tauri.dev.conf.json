@@ -1,7 +1,14 @@
 {
   "identifier": "xyz.block.buzz.app.dev",
-  "productName": "Buzz Dev",
+  "productName": "ASV Buzz",
   "bundle": {
+    "icon": [
+      "icons-asv/32x32.png",
+      "icons-asv/128x128.png",
+      "icons-asv/128x128@2x.png",
+      "icons-asv/icon.icns",
+      "icons-asv/icon.ico"
+    ],
     "macOS": {
       "infoPlist": "Info.dev.plist"
     }

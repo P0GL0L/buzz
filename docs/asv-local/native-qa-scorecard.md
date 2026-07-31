@@ -9,13 +9,15 @@
 | Identity persistence | Same comparison | Pass only when a non-empty dev identity digest matches across two clean restarts |
 | Workspace web matrix | `just desktop-native-qa-web` | Browser-mock evidence; never a native pass |
 | Tauri smoke | `just desktop-tauri-test` | Native-code test result |
-| Native visual | `build/native-qa/*` plus real-window screenshots | Manual evidence from `Buzz Dev` |
+| Native visual | `build/native-qa/*` plus real-window screenshots | Manual evidence from `ASV Buzz` |
 | Accessibility and keyboard | Named human checklist | Manual on-device acceptance |
 | ADI verifier | `app-design-gate` brief/verifier | Unsupported for macOS/Tauri; recorded, not waived |
 
 ## On-device checklist
 
-- Confirm the title and app switcher identify `Buzz Dev`.
+- Confirm the title and app switcher identify `ASV Buzz`.
+- Confirm the Dock/Finder icon uses the A Salty Vet cutout mark and remains
+  visually distinct from production Buzz.
 - Confirm the window opens in the expected desktop layout without overlap or
   clipped controls.
 - Confirm Tab reaches reader/browser controls in a sensible order.

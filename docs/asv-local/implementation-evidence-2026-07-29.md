@@ -18,7 +18,7 @@ proof are not interchangeable.
 - Two-restart comparison:
   `developmentIdentityPersistent=true`,
   `productionStateUnchanged=true`
-- Packaged debug application is identified by macOS as `Buzz Dev`.
+- Packaged debug application is identified by macOS as `ASV Buzz`.
 - A stale production-key autofill attempted an identity import during native
   onboarding and was rejected by the standalone import guard.
 - The first post-onboarding direct app relaunch exposed a scope-loss bug:
@@ -80,7 +80,7 @@ provider-account ownership gate; it is not represented as revoked.
   pending. The stored verifier receipt must be read as an unsupported-platform
   gate result, not a product-quality failure or an automated pass.
 - Packaged native screenshots were captured with secrets masked.
-- Packaged `Buzz Dev` exposed labelled controls through macOS accessibility.
+- Packaged `ASV Buzz` exposed labelled controls through macOS accessibility.
   Keyboard traversal moved in order from `Join a community` to
   `Create a community` to `I already have a community`, and reverse traversal
   returned to `Create a community`. Return activated the focused control.
@@ -239,11 +239,37 @@ the mention preflight safely rejected the affected chunks.
 
 POGsAlien/Cody remains excluded.
 
-## Buzz Dev workspace extensions
+## ASV Buzz product identity
+
+- The isolated desktop product is now displayed by macOS as `ASV Buzz`.
+- The rename is presentation-only: bundle identifier
+  `xyz.block.buzz.app.dev`, keyring service `buzz-desktop-dev.main`, and the
+  existing application-support directory remain unchanged.
+- The first-party A Salty Vet cutout mark was converted into a dedicated
+  `desktop/src-tauri/icons-asv/` icon set referenced only by the development
+  Tauri configuration. The production Buzz icon set remains unchanged.
+- The Developer ID-signed app bundle reports `ASV Buzz` for both
+  `CFBundleDisplayName` and `CFBundleName`, contains the ASV icon byte-for-byte,
+  and passes `codesign --verify --deep --strict`.
+- Two direct launches of the renamed signed bundle reopened the preserved
+  `ASV Buzz Dev` identity and retained the existing channels and agent records.
+  The native comparison returned
+  `developmentIdentityPersistent=true` and
+  `productionStateUnchanged=true`.
+- Branding validation passed desktop typecheck, focused Biome, four provider
+  state tests, two native-browser safety tests, and five focused workspace/skill
+  Playwright cases. `scripts/test-instance-env.sh` also retained the canonical
+  development identifier.
+- The ADI verifier again exited with its explicit unsupported-stack result
+  because it has no macOS/Tauri source classifier; the stored receipt is not
+  represented as either an automated pass or a product defect.
+- Notarization remains a separate distribution gate.
+
+## ASV Buzz workspace extensions
 
 - The artifact workspace now classifies and opens bounded semantic DOCX, XLSX,
   and PPTX previews in addition to Markdown, text, images, and PDF.
-- The native browser uses a Buzz Dev-scoped persistent webview profile, audited
+- The native browser uses an ASV Buzz-scoped persistent webview profile, audited
   agent actions, HTTP(S)-only navigation, bounded page extraction, and
   artifact-routed downloads. Page capture remains an explicit unsupported
   result pending a safe native capture API.
@@ -251,7 +277,7 @@ POGsAlien/Cody remains excluded.
   Antigravity, and Gemini CLI with installed, pending-consent, connected,
   degraded, expired, and disconnected states.
 - Provider runtime homes and allowlisted app-owned binaries resolve under the
-  Buzz Dev application-data directory. Production Buzz and provider-global
+  ASV Buzz application-data directory. Production Buzz and provider-global
   credential profiles are not migration sources.
 - The bundled `buzz-antigravity-acp` bridge converts personal-plan Google
   requests into isolated `agy -p --output-format stream-json` tasks. It has no
@@ -259,7 +285,7 @@ POGsAlien/Cody remains excluded.
   input, caps JSONL frames and output, enforces a wall-time limit, and kills
   the child process on cancellation.
 - The adapter catalog entry remains unavailable until the official `agy`
-  executable is present in the Buzz Dev provider directory. Runtime launch
+  executable is present in the ASV Buzz provider directory. Runtime launch
   injects only the scoped provider home and executable path; it does not place
   OAuth material in arguments, agent definitions, logs, or relay records.
 - Settings → Skills now renders the local relay-safe inventory with search and
@@ -282,7 +308,7 @@ POGsAlien/Cody remains excluded.
   runtime is represented as callable or hosted-admitted.
 - Provider reconciliation passed four focused Rust tests, warnings-as-errors
   Tauri Clippy, desktop typecheck, and the focused provider Playwright gate. The
-  Developer ID-signed Buzz Dev bundle preserved `ASV Buzz Dev`, the existing
+  Developer ID-signed ASV Buzz bundle preserved `ASV Buzz Dev`, the existing
   channels, and all nine canonical agent definitions and portraits across two
   direct bundle restarts. Notarization remains a separate distribution gate.
 

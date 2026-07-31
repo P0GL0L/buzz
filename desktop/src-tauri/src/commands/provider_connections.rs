@@ -115,7 +115,7 @@ fn providers_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map(|path| path.join("providers"))
-        .map_err(|error| format!("failed to resolve Buzz Dev provider storage: {error}"))
+        .map_err(|error| format!("failed to resolve ASV Buzz provider storage: {error}"))
 }
 
 fn provider_home(app: &tauri::AppHandle, runtime_id: &str) -> Result<PathBuf, String> {
@@ -631,7 +631,7 @@ pub(crate) fn apply_runtime_env(
         .is_some_and(|record| record.status == "disconnected")
     {
         return Err(format!(
-            "{runtime_command} is disconnected from Buzz Dev; reconnect it in Settings"
+            "{runtime_command} is disconnected from ASV Buzz; reconnect it in Settings"
         ));
     }
     match runtime_command {

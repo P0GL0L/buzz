@@ -163,7 +163,7 @@ pub(crate) fn read_workspace_download(
         .canonicalize()
         .map_err(|error| format!("browser download is unavailable: {error}"))?;
     if !path.starts_with(&downloads) {
-        return Err("browser download is outside the Buzz Dev workspace".to_string());
+        return Err("browser download is outside the ASV Buzz workspace".to_string());
     }
     let metadata = std::fs::symlink_metadata(&path)
         .map_err(|error| format!("failed to inspect browser download: {error}"))?;
@@ -905,7 +905,7 @@ pub fn capture_workspace_browser(
 }
 
 /// Return bytes for a completed browser download after proving that the path is
-/// a regular file inside this Buzz Dev app's isolated browser download root.
+/// a regular file inside this ASV Buzz app's isolated browser download root.
 #[tauri::command]
 pub fn fetch_workspace_browser_download(
     app: tauri::AppHandle,
