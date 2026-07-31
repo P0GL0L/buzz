@@ -85,6 +85,9 @@ pub struct Config {
     pub relay_url: String,
     /// Public WebSocket URL of the dedicated device-pairing relay, when configured.
     pub pairing_relay_url: Option<String>,
+    /// Phone-reachable WebSocket URL of this community relay, when the local
+    /// development listener is fronted by a private TLS proxy.
+    pub remote_relay_url: Option<String>,
     /// Maximum number of concurrent WebSocket connections.
     pub max_connections: usize,
     /// Maximum number of concurrently executing message handlers.
@@ -489,6 +492,32 @@ impl Config {
                 if !matches!(parsed.scheme(), "ws" | "wss") || parsed.host_str().is_none() {
                     return Err(ConfigError::InvalidValue(
                         "BUZZ_PAIRING_RELAY_URL must be a valid ws:// or wss:// URL".to_string(),
+                    ));
+                }
+                Ok(value)
+            })
+            .transpose()?;
+
+        let remote_relay_url = std::env::var("BUZZ_REMOTE_RELAY_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                let parsed = url::Url::parse(&value).map_err(|e| {
+                    ConfigError::InvalidValue(format!(
+                        "BUZZ_REMOTE_RELAY_URL must be a valid wss:// URL: {e}"
+                    ))
+                })?;
+                if parsed.scheme() != "wss"
+                    || parsed.host_str().is_none()
+                    || !parsed.username().is_empty()
+                    || parsed.password().is_some()
+                    || parsed.query().is_some()
+                    || parsed.fragment().is_some()
+                {
+                    return Err(ConfigError::InvalidValue(
+                        "BUZZ_REMOTE_RELAY_URL must be a credential-free wss:// URL without a query or fragment"
+                            .to_string(),
                     ));
                 }
                 Ok(value)
@@ -940,6 +969,7 @@ impl Config {
             db_read_pool_size,
             relay_url,
             pairing_relay_url,
+            remote_relay_url,
             max_connections,
             max_concurrent_handlers,
             send_buffer_size,
@@ -1520,6 +1550,32 @@ mod tests {
             result,
             Err(ConfigError::InvalidValue(ref msg)) if msg.contains("BUZZ_PAIRING_RELAY_URL")
         ));
+    }
+
+    #[test]
+    fn remote_relay_url_requires_bounded_wss_origin() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        std::env::set_var("BUZZ_REMOTE_RELAY_URL", "wss://asv-buzz.example.ts.net");
+        let config = Config::from_env().expect("config");
+        assert_eq!(
+            config.remote_relay_url.as_deref(),
+            Some("wss://asv-buzz.example.ts.net")
+        );
+
+        for invalid in [
+            "ws://asv-buzz.example.ts.net",
+            "https://asv-buzz.example.ts.net",
+            "wss://user:secret@asv-buzz.example.ts.net",
+            "wss://asv-buzz.example.ts.net?token=secret",
+        ] {
+            std::env::set_var("BUZZ_REMOTE_RELAY_URL", invalid);
+            let result = Config::from_env();
+            assert!(matches!(
+                result,
+                Err(ConfigError::InvalidValue(ref msg)) if msg.contains("BUZZ_REMOTE_RELAY_URL")
+            ));
+        }
+        std::env::remove_var("BUZZ_REMOTE_RELAY_URL");
     }
 
     #[test]

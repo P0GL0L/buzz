@@ -52,6 +52,10 @@ pub struct RelayInfo {
     /// Public WebSocket URL of the dedicated NIP-AB device-pairing relay.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pairing_relay_url: Option<String>,
+    /// Phone-reachable TLS endpoint for this community relay. Development
+    /// deployments use this when their primary listener is loopback-only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_relay_url: Option<String>,
     /// Relay's own signing pubkey (NIP-11 `self` field, NIP-43).
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
     pub relay_self: Option<String>,
@@ -163,6 +167,7 @@ impl RelayInfo {
             version: env!("CARGO_PKG_VERSION").to_string(),
             limitation: Some(relay_limitation(max_message_length)),
             pairing_relay_url: pairing_relay_url.map(str::to_string),
+            remote_relay_url: None,
             relay_self: relay_self.map(|s| s.to_string()),
         }
     }
@@ -242,6 +247,7 @@ pub(crate) async fn nip11_document(state: &crate::state::AppState, raw_host: &st
         state.config.max_frame_bytes,
         state.config.pairing_relay_url.as_deref(),
     );
+    info.remote_relay_url = state.config.remote_relay_url.clone();
     let tenant_host = if state.config.push_gateway_delivery_url.is_some() {
         crate::tenant::bind_community(&state.db, raw_host)
             .await
