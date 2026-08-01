@@ -109,6 +109,15 @@ occlusion, or capture failures; a failed request never fabricates an image.
 Successful screenshots and downloads become immutable artifacts in the active
 thread.
 
+The workspace browser is always composed as a dedicated right-hand sibling of
+the current ASV Buzz content surface. It must not use a backdrop, fixed-position
+drawer, or any geometry that covers channel messages, a focused thread, agent
+context, or settings content. Its left edge is resizable and the width is
+clamped so the current context retains a usable column. Opening, navigating,
+and closing the browser preserves the selected channel and thread underneath;
+at narrow window widths the two columns compress within their explicit minimums
+rather than changing into an overlapping sheet.
+
 ### Voice dictation
 
 Dictation is a composer action, not a destination, tab, or autonomous agent
@@ -235,6 +244,10 @@ paths, host details, permission evidence, or connector configuration.
 - A normal HTTP(S) message link can be opened in the Buzz browser from its
   context menu without removing the OS-browser option.
 - Reader and browser states are keyboard-closeable and expose useful labels.
+- The browser panel's left edge begins at or after the right edge of the active
+  content pane, with no backdrop or overlap at every supported desktop width.
+- Dragging the browser divider resizes only the two adjacent panes and
+  double-clicking it restores the default browser width.
 - Automated tests cover resource classification, URL normalization, file
   metadata formatting, and context-menu activation of the browser panel.
 

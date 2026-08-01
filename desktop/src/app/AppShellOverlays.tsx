@@ -2,11 +2,6 @@ import * as React from "react";
 
 import type { Channel } from "@/shared/api/types";
 import type { CreateChannelInput } from "@/features/sidebar/lib/useCreateChannelForm";
-import type { WorkspaceResource } from "@/features/workspace/lib/workspaceResource";
-import {
-  consumePendingWorkspaceResource,
-  subscribeWorkspaceResource,
-} from "@/features/workspace/openWorkspaceResourceEvent";
 import { useDeferredModalOpen } from "@/shared/ui/deferredModalOpen";
 
 const ChannelBrowserDialog = React.lazy(async () => {
@@ -17,11 +12,6 @@ const ChannelBrowserDialog = React.lazy(async () => {
 const ChannelManagementSheet = React.lazy(async () => {
   const module = await import("@/features/channels/ui/ChannelManagementSheet");
   return { default: module.ChannelManagementSheet };
-});
-
-const WorkspacePanel = React.lazy(async () => {
-  const module = await import("@/features/workspace/ui/WorkspacePanel");
-  return { default: module.WorkspacePanel };
 });
 
 export type BrowseDialogType = "stream" | "forum" | null;
@@ -57,8 +47,6 @@ export function AppShellOverlays({
 }: AppShellOverlaysProps) {
   const [visibleBrowseDialogType, setVisibleBrowseDialogType] =
     React.useState<BrowseDialogType>(null);
-  const [workspaceResource, setWorkspaceResource] =
-    React.useState<WorkspaceResource | null>(null);
   const { cancelDeferredModalOpen, openNextFrame: openModalNextFrame } =
     useDeferredModalOpen();
 
@@ -74,12 +62,6 @@ export function AppShellOverlays({
       setVisibleBrowseDialogType(browseDialogType);
     });
   }, [browseDialogType, cancelDeferredModalOpen, openModalNextFrame]);
-
-  React.useEffect(() => {
-    const pending = consumePendingWorkspaceResource();
-    if (pending) setWorkspaceResource(pending);
-    return subscribeWorkspaceResource(setWorkspaceResource);
-  }, []);
 
   const renderedBrowseDialogType = visibleBrowseDialogType ?? browseDialogType;
 
@@ -108,15 +90,6 @@ export function AppShellOverlays({
             onDeleted={onDeleteActiveChannel}
             onOpenChange={onChannelManagementOpenChange}
             open={true}
-          />
-        </React.Suspense>
-      ) : null}
-
-      {workspaceResource ? (
-        <React.Suspense fallback={null}>
-          <WorkspacePanel
-            onClose={() => setWorkspaceResource(null)}
-            resource={workspaceResource}
           />
         </React.Suspense>
       ) : null}

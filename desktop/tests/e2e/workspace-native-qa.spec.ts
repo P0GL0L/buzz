@@ -273,6 +273,20 @@ test("browser panel covers navigation, blocked-embed fallback, restart, and keyb
   await address.press("Enter");
   await expect(frame).toHaveAttribute("src", "https://example.org/second");
   const panel = page.getByTestId("workspace-panel");
+  const mainContent = page.getByTestId("main-content-pane");
+  const [mainBox, panelBox] = await Promise.all([
+    mainContent.boundingBox(),
+    panel.boundingBox(),
+  ]);
+  expect(mainBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  expect((mainBox?.x ?? 0) + (mainBox?.width ?? 0)).toBeLessThanOrEqual(
+    (panelBox?.x ?? 0) + 1,
+  );
+  await expect(panel).toHaveCSS("position", "relative");
+  await expect(
+    page.getByRole("button", { name: "Resize workspace" }),
+  ).toBeVisible();
   await panel.getByRole("button", { name: "Back", exact: true }).click();
   await expect(frame).toHaveAttribute("src", "https://example.com/blocked");
   await panel.getByRole("button", { name: "Forward" }).click();

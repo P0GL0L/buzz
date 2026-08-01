@@ -17,7 +17,7 @@ import { fetchMediaBytes } from "@/shared/api/tauriMedia";
 import { cn } from "@/shared/lib/cn";
 import { Button } from "@/shared/ui/button";
 import { Markdown } from "@/shared/ui/markdown";
-import { OverlayPanelBackdrop } from "@/shared/ui/OverlayPanelBackdrop";
+import { useWorkspacePanelWidth } from "../useWorkspacePanelWidth";
 import {
   classifyArtifactPreview,
   formatWorkspaceFileSize,
@@ -236,6 +236,7 @@ export function WorkspacePanel({
 }) {
   const isArtifact = resource.kind === "artifact";
   const [showArtifactDetails, setShowArtifactDetails] = React.useState(false);
+  const panelWidth = useWorkspacePanelWidth();
   const normalizedBrowserUrl =
     resource.kind === "browser" ? normalizeBrowserUrl(resource.url) : null;
   const title = isArtifact
@@ -262,191 +263,203 @@ export function WorkspacePanel({
   }, [onClose]);
 
   return (
-    <>
-      <OverlayPanelBackdrop onClose={onClose} />
-      <aside
-        aria-label={isArtifact ? "Artifact reader" : "Buzz browser"}
-        className={cn(
-          "fixed inset-y-0 right-0 z-50 flex w-full max-w-3xl flex-col border-l border-border bg-background shadow-2xl",
-          "animate-in slide-in-from-right duration-200",
-        )}
-        data-testid="workspace-panel"
+    <aside
+      aria-label={isArtifact ? "Artifact reader" : "Buzz browser"}
+      className={cn(
+        "group/workspace-panel relative flex h-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-border bg-background",
+        "animate-in slide-in-from-right duration-200",
+      )}
+      data-testid="workspace-panel"
+      style={{ maxWidth: panelWidth.maxWidth, width: panelWidth.widthPx }}
+    >
+      <button
+        aria-label="Resize workspace"
+        className="group/workspace-resize absolute inset-y-0 left-0 z-50 w-3 -translate-x-1/2 cursor-col-resize"
+        data-testid="workspace-panel-resize-handle"
+        onDoubleClick={
+          panelWidth.canReset ? panelWidth.onResetWidth : undefined
+        }
+        onPointerDown={panelWidth.onResizeStart}
+        title={
+          panelWidth.canReset
+            ? "Drag to resize. Double-click to reset width."
+            : "Drag to resize."
+        }
+        type="button"
       >
-        <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border/70 px-4 py-2">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            {isArtifact ? <FileQuestion /> : <Globe2 />}
-          </span>
-          <div className="min-w-0 flex-1">
-            <h1 className="truncate text-sm font-semibold" title={title}>
-              {title}
-            </h1>
-            <p
-              className="truncate text-xs text-muted-foreground"
-              title={metadata}
-            >
-              {metadata}
-            </p>
-          </div>
-          {isArtifact && resource.localPath ? (
-            <Button
-              aria-label={`Open ${resource.filename} in its native application`}
-              onClick={() => {
-                void openPath(resource.localPath ?? "").catch(
-                  (error: unknown) =>
-                    toast.error(
-                      error instanceof Error
-                        ? error.message
-                        : "Couldn’t open the native application",
-                    ),
-                );
-              }}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              <ExternalLink />
-            </Button>
-          ) : null}
-          {isArtifact && !resource.localPath ? (
-            <Button
-              aria-label={`Download ${resource.filename}`}
-              data-testid="workspace-download"
-              onClick={() => {
-                invokeTauri("download_file", {
-                  url: resource.url,
-                  filename: resource.filename,
-                }).catch((error: unknown) => {
-                  toast.error(
-                    error instanceof Error ? error.message : "Download failed",
-                  );
-                });
-              }}
-              size="icon"
-              type="button"
-              variant="ghost"
-            >
-              <Download />
-            </Button>
-          ) : null}
-          {isArtifact ? (
-            <Button
-              aria-label="Artifact metadata and revision history"
-              aria-pressed={showArtifactDetails}
-              onClick={() => setShowArtifactDetails((visible) => !visible)}
-              size="icon"
-              type="button"
-              variant={showArtifactDetails ? "secondary" : "ghost"}
-            >
-              {resource.revisions?.length ? <History /> : <Info />}
-            </Button>
-          ) : null}
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover/workspace-resize:bg-border group-focus-visible/workspace-resize:bg-border" />
+      </button>
+      <header className="flex min-h-14 shrink-0 items-center gap-3 border-b border-border/70 px-4 py-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+          {isArtifact ? <FileQuestion /> : <Globe2 />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-sm font-semibold" title={title}>
+            {title}
+          </h1>
+          <p
+            className="truncate text-xs text-muted-foreground"
+            title={metadata}
+          >
+            {metadata}
+          </p>
+        </div>
+        {isArtifact && resource.localPath ? (
           <Button
-            aria-label="Close workspace"
-            onClick={onClose}
+            aria-label={`Open ${resource.filename} in its native application`}
+            onClick={() => {
+              void openPath(resource.localPath ?? "").catch((error: unknown) =>
+                toast.error(
+                  error instanceof Error
+                    ? error.message
+                    : "Couldn’t open the native application",
+                ),
+              );
+            }}
             size="icon"
             type="button"
             variant="ghost"
           >
-            <X />
+            <ExternalLink />
           </Button>
-        </header>
-        {isArtifact && showArtifactDetails ? (
-          <section
-            aria-label="Artifact metadata"
-            className="max-h-52 shrink-0 overflow-auto border-b bg-muted/20 px-4 py-3 text-xs"
-            data-testid="workspace-artifact-metadata"
-          >
-            <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
-              <dt className="text-muted-foreground">Artifact</dt>
-              <dd
-                className="truncate font-mono"
-                title={resolvedArtifactId(resource)}
-              >
-                {resolvedArtifactId(resource)}
-              </dd>
-              <dt className="text-muted-foreground">Version</dt>
-              <dd>{resource.version ?? 1}</dd>
-              <dt className="text-muted-foreground">Source</dt>
-              <dd>{resource.source ?? "attachment"}</dd>
-              {resource.sha256 ? (
-                <>
-                  <dt className="text-muted-foreground">SHA-256</dt>
-                  <dd className="truncate font-mono" title={resource.sha256}>
-                    {resource.sha256}
-                  </dd>
-                </>
-              ) : null}
-              {resource.signer ? (
-                <>
-                  <dt className="text-muted-foreground">Signer</dt>
-                  <dd className="truncate font-mono" title={resource.signer}>
-                    {resource.signer}
-                  </dd>
-                </>
-              ) : null}
-              {resource.correlationId ? (
-                <>
-                  <dt className="text-muted-foreground">Task correlation</dt>
-                  <dd className="truncate font-mono">
-                    {resource.correlationId}
-                  </dd>
-                </>
-              ) : null}
-            </dl>
-            {resource.revisions?.length ? (
-              <div className="mt-3 border-t pt-3">
-                <p className="mb-2 font-medium">Signed revisions</p>
-                <ol className="space-y-1">
-                  {[...resource.revisions]
-                    .sort((a, b) => b.version - a.version)
-                    .map((revision) => (
-                      <li key={revision.eventId}>
-                        <button
-                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                          onClick={() =>
-                            requestOpenWorkspaceResource({
-                              kind: "artifact",
-                              artifactId: resolvedArtifactId(resource),
-                              correlationId: resource.correlationId,
-                              filename: revision.filename,
-                              mime: revision.mime,
-                              parentEventId: revision.parentEventId,
-                              revisions: resource.revisions,
-                              sha256: revision.sha256,
-                              signer: revision.signer,
-                              size: revision.size,
-                              source: revision.source,
-                              threadId: resource.threadId,
-                              url: revision.url,
-                              version: revision.version,
-                            })
-                          }
-                          type="button"
-                        >
-                          <span>Version {revision.version}</span>
-                          <span className="text-muted-foreground">
-                            {revision.filename}
-                          </span>
-                        </button>
-                      </li>
-                    ))}
-                </ol>
-              </div>
-            ) : (
-              <p className="mt-3 border-t pt-3 text-muted-foreground">
-                No additional signed revisions are attached to this thread.
-              </p>
-            )}
-          </section>
         ) : null}
-        <div className="min-h-0 flex-1">
-          {resource.kind === "artifact" ? (
-            <ArtifactReader resource={resource} />
+        {isArtifact && !resource.localPath ? (
+          <Button
+            aria-label={`Download ${resource.filename}`}
+            data-testid="workspace-download"
+            onClick={() => {
+              invokeTauri("download_file", {
+                url: resource.url,
+                filename: resource.filename,
+              }).catch((error: unknown) => {
+                toast.error(
+                  error instanceof Error ? error.message : "Download failed",
+                );
+              });
+            }}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            <Download />
+          </Button>
+        ) : null}
+        {isArtifact ? (
+          <Button
+            aria-label="Artifact metadata and revision history"
+            aria-pressed={showArtifactDetails}
+            onClick={() => setShowArtifactDetails((visible) => !visible)}
+            size="icon"
+            type="button"
+            variant={showArtifactDetails ? "secondary" : "ghost"}
+          >
+            {resource.revisions?.length ? <History /> : <Info />}
+          </Button>
+        ) : null}
+        <Button
+          aria-label="Close workspace"
+          onClick={onClose}
+          size="icon"
+          type="button"
+          variant="ghost"
+        >
+          <X />
+        </Button>
+      </header>
+      {isArtifact && showArtifactDetails ? (
+        <section
+          aria-label="Artifact metadata"
+          className="max-h-52 shrink-0 overflow-auto border-b bg-muted/20 px-4 py-3 text-xs"
+          data-testid="workspace-artifact-metadata"
+        >
+          <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[8rem_minmax(0,1fr)]">
+            <dt className="text-muted-foreground">Artifact</dt>
+            <dd
+              className="truncate font-mono"
+              title={resolvedArtifactId(resource)}
+            >
+              {resolvedArtifactId(resource)}
+            </dd>
+            <dt className="text-muted-foreground">Version</dt>
+            <dd>{resource.version ?? 1}</dd>
+            <dt className="text-muted-foreground">Source</dt>
+            <dd>{resource.source ?? "attachment"}</dd>
+            {resource.sha256 ? (
+              <>
+                <dt className="text-muted-foreground">SHA-256</dt>
+                <dd className="truncate font-mono" title={resource.sha256}>
+                  {resource.sha256}
+                </dd>
+              </>
+            ) : null}
+            {resource.signer ? (
+              <>
+                <dt className="text-muted-foreground">Signer</dt>
+                <dd className="truncate font-mono" title={resource.signer}>
+                  {resource.signer}
+                </dd>
+              </>
+            ) : null}
+            {resource.correlationId ? (
+              <>
+                <dt className="text-muted-foreground">Task correlation</dt>
+                <dd className="truncate font-mono">{resource.correlationId}</dd>
+              </>
+            ) : null}
+          </dl>
+          {resource.revisions?.length ? (
+            <div className="mt-3 border-t pt-3">
+              <p className="mb-2 font-medium">Signed revisions</p>
+              <ol className="space-y-1">
+                {[...resource.revisions]
+                  .sort((a, b) => b.version - a.version)
+                  .map((revision) => (
+                    <li key={revision.eventId}>
+                      <button
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left hover:bg-muted"
+                        onClick={() =>
+                          requestOpenWorkspaceResource({
+                            kind: "artifact",
+                            artifactId: resolvedArtifactId(resource),
+                            correlationId: resource.correlationId,
+                            filename: revision.filename,
+                            mime: revision.mime,
+                            parentEventId: revision.parentEventId,
+                            revisions: resource.revisions,
+                            sha256: revision.sha256,
+                            signer: revision.signer,
+                            size: revision.size,
+                            source: revision.source,
+                            threadId: resource.threadId,
+                            url: revision.url,
+                            version: revision.version,
+                          })
+                        }
+                        type="button"
+                      >
+                        <span>Version {revision.version}</span>
+                        <span className="text-muted-foreground">
+                          {revision.filename}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+              </ol>
+            </div>
           ) : (
-            <NativeBrowserReader resource={resource} />
+            <p className="mt-3 border-t pt-3 text-muted-foreground">
+              No additional signed revisions are attached to this thread.
+            </p>
           )}
-        </div>
-      </aside>
-    </>
+        </section>
+      ) : null}
+      <div className="min-h-0 flex-1">
+        {resource.kind === "artifact" ? (
+          <ArtifactReader resource={resource} />
+        ) : (
+          <NativeBrowserReader resource={resource} />
+        )}
+      </div>
+    </aside>
   );
 }
