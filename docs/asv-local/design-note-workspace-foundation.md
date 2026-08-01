@@ -116,7 +116,9 @@ context, or settings content. Its left edge is resizable and the width is
 clamped so the current context retains a usable column. Opening, navigating,
 and closing the browser preserves the selected channel and thread underneath;
 at narrow window widths the two columns compress within their explicit minimums
-rather than changing into an overlapping sheet.
+rather than changing into an overlapping sheet. The divider occupies a dedicated
+gutter outside the native child webview and captures the active pointer so
+webpage content cannot steal or strand the resize gesture.
 
 ### Voice dictation
 

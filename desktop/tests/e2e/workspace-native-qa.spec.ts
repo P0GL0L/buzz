@@ -284,9 +284,40 @@ test("browser panel covers navigation, blocked-embed fallback, restart, and keyb
     (panelBox?.x ?? 0) + 1,
   );
   await expect(panel).toHaveCSS("position", "relative");
-  await expect(
-    page.getByRole("button", { name: "Resize workspace" }),
-  ).toBeVisible();
+  const resizeHandle = page.getByRole("button", { name: "Resize workspace" });
+  await expect(resizeHandle).toBeVisible();
+  const initialPanelBox = await panel.boundingBox();
+  const initialHandleBox = await resizeHandle.boundingBox();
+  expect(initialPanelBox).not.toBeNull();
+  expect(initialHandleBox).not.toBeNull();
+  expect(initialHandleBox?.x ?? 0).toBeGreaterThanOrEqual(
+    initialPanelBox?.x ?? 0,
+  );
+  await page.mouse.move(
+    (initialHandleBox?.x ?? 0) + (initialHandleBox?.width ?? 0) / 2,
+    (initialHandleBox?.y ?? 0) + 160,
+  );
+  await page.mouse.down();
+  await page.mouse.move((initialHandleBox?.x ?? 0) + 100, 160, {
+    steps: 8,
+  });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await panel.boundingBox())?.width ?? 0)
+    .toBeLessThan((initialPanelBox?.width ?? 0) - 70);
+
+  const shrunkenPanelBox = await panel.boundingBox();
+  const shrunkenHandleBox = await resizeHandle.boundingBox();
+  await page.mouse.move(
+    (shrunkenHandleBox?.x ?? 0) + (shrunkenHandleBox?.width ?? 0) / 2,
+    (shrunkenHandleBox?.y ?? 0) + 220,
+  );
+  await page.mouse.down();
+  await page.mouse.move((shrunkenHandleBox?.x ?? 0) - 80, 220, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await panel.boundingBox())?.width ?? 0)
+    .toBeGreaterThan((shrunkenPanelBox?.width ?? 0) + 50);
   await panel.getByRole("button", { name: "Back", exact: true }).click();
   await expect(frame).toHaveAttribute("src", "https://example.com/blocked");
   await panel.getByRole("button", { name: "Forward" }).click();

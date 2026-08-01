@@ -37,6 +37,7 @@ function getInitialWorkspacePanelWidth(): number {
 
 export function useWorkspacePanelWidth() {
   const [widthPx, setWidthPx] = React.useState(getInitialWorkspacePanelWidth);
+  const finishResizeRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(() => {
     try {
@@ -49,30 +50,87 @@ export function useWorkspacePanelWidth() {
     }
   }, [widthPx]);
 
+  React.useEffect(
+    () => () => {
+      finishResizeRef.current?.();
+    },
+    [],
+  );
+
   const onResizeStart = React.useCallback(
     (event: React.PointerEvent<HTMLButtonElement>) => {
       event.preventDefault();
+      event.stopPropagation();
+
+      finishResizeRef.current?.();
 
       const startX = event.clientX;
       const startWidth = widthPx;
+      const pointerId = event.pointerId;
+      const target = event.currentTarget;
       const previousCursor = document.body.style.cursor;
       const previousUserSelect = document.body.style.userSelect;
+      let finished = false;
 
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
+      document.documentElement.dataset.workspaceResizing = "true";
+      try {
+        target.setPointerCapture(pointerId);
+      } catch {
+        // Window-level listeners below remain the fallback for older webviews.
+      }
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
         const deltaX = startX - moveEvent.clientX;
         setWidthPx(clampWorkspacePanelWidth(startWidth + deltaX));
       };
-      const handlePointerUp = () => {
+      const finishResize = () => {
+        if (finished) return;
+        finished = true;
         document.body.style.cursor = previousCursor;
         document.body.style.userSelect = previousUserSelect;
+        delete document.documentElement.dataset.workspaceResizing;
         window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+        window.removeEventListener("pointercancel", handlePointerCancel);
+        window.removeEventListener("blur", finishResize);
+        window.removeEventListener("keydown", handleKeyDown, true);
+        target.removeEventListener("lostpointercapture", finishResize);
+        try {
+          if (target.hasPointerCapture(pointerId)) {
+            target.releasePointerCapture(pointerId);
+          }
+        } catch {
+          // Pointer capture may already have been released by the platform.
+        }
+        if (finishResizeRef.current === finishResize) {
+          finishResizeRef.current = null;
+        }
+      };
+      const handlePointerUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId === pointerId) finishResize();
+      };
+      const handlePointerCancel = (cancelEvent: PointerEvent) => {
+        if (cancelEvent.pointerId === pointerId) finishResize();
+      };
+      const handleKeyDown = (keyEvent: KeyboardEvent) => {
+        if (keyEvent.key !== "Escape") return;
+        keyEvent.preventDefault();
+        setWidthPx(startWidth);
+        finishResize();
       };
 
+      finishResizeRef.current = finishResize;
       window.addEventListener("pointermove", handlePointerMove);
-      window.addEventListener("pointerup", handlePointerUp, { once: true });
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerCancel);
+      window.addEventListener("blur", finishResize, { once: true });
+      window.addEventListener("keydown", handleKeyDown, true);
+      target.addEventListener("lostpointercapture", finishResize, {
+        once: true,
+      });
     },
     [widthPx],
   );
