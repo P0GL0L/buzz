@@ -22,6 +22,7 @@ import { Button } from "@/shared/ui/button";
 import { requestOpenWorkspaceResource } from "../openWorkspaceResourceEvent";
 import {
   boundsForElement,
+  type BrowserBounds,
   type BrowserCaptureResult,
   type BrowserPageExtraction,
   type NativeWorkspaceBrowserState,
@@ -64,15 +65,6 @@ export function NativeBrowserReader({
       ? (nativeState?.currentUrl ?? initialUrl)
       : (fallback.history[fallback.index] ?? initialUrl);
 
-  const updateBounds = React.useCallback(() => {
-    if (mode !== "native" || !contentRef.current) return;
-    void invokeTauri("update_workspace_browser_bounds", {
-      bounds: boundsForElement(contentRef.current),
-    }).catch(() => {
-      // Resize races with panel close are expected and need no user-facing error.
-    });
-  }, [mode]);
-
   React.useEffect(() => {
     const next = normalizeBrowserUrl(resource.url);
     if (!next) return;
@@ -90,7 +82,6 @@ export function NativeBrowserReader({
 
   React.useEffect(() => {
     let active = true;
-    let resizeObserver: ResizeObserver | undefined;
     let unlistenState: UnlistenFn | undefined;
     let unlistenPopup: UnlistenFn | undefined;
     let unlistenDownload: UnlistenFn | undefined;
@@ -181,28 +172,67 @@ export function NativeBrowserReader({
       unlistenDownload = dispose;
     });
 
-    if (contentRef.current) {
-      resizeObserver = new ResizeObserver(() => updateBounds());
-      resizeObserver.observe(contentRef.current);
-    }
     return () => {
       active = false;
       window.clearTimeout(timer);
-      resizeObserver?.disconnect();
       unlistenState?.();
       unlistenPopup?.();
       unlistenDownload?.();
       void invokeTauri("close_workspace_browser").catch(() => {});
     };
-  }, [initialUrl, resource.correlationId, resource.threadId, updateBounds]);
+  }, [initialUrl, resource.correlationId, resource.threadId]);
 
   React.useEffect(() => {
-    if (mode !== "native" || !contentRef.current) return;
-    const observer = new ResizeObserver(() => updateBounds());
-    observer.observe(contentRef.current);
-    updateBounds();
-    return () => observer.disconnect();
-  }, [mode, updateBounds]);
+    const element = contentRef.current;
+    if (mode !== "native" || !element) return;
+
+    let active = true;
+    let animationFrame: number | null = null;
+    let requestInFlight = false;
+    let pendingBounds: BrowserBounds | null = null;
+    let lastRequestedBounds = "";
+
+    const pumpLatestBounds = () => {
+      if (!active || requestInFlight || !pendingBounds) return;
+      const bounds = pendingBounds;
+      pendingBounds = null;
+      const boundsKey = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`;
+      if (boundsKey === lastRequestedBounds) return;
+
+      lastRequestedBounds = boundsKey;
+      requestInFlight = true;
+      void invokeTauri("update_workspace_browser_bounds", { bounds })
+        .catch(() => {
+          // Resize races with panel close are expected and need no user-facing error.
+        })
+        .finally(() => {
+          requestInFlight = false;
+          pumpLatestBounds();
+        });
+    };
+    const measureLatestBounds = () => {
+      animationFrame = null;
+      if (!active) return;
+      pendingBounds = boundsForElement(element);
+      pumpLatestBounds();
+    };
+    const scheduleBoundsUpdate = () => {
+      if (!active || animationFrame !== null) return;
+      animationFrame = window.requestAnimationFrame(measureLatestBounds);
+    };
+
+    const observer = new ResizeObserver(scheduleBoundsUpdate);
+    observer.observe(element);
+    scheduleBoundsUpdate();
+    return () => {
+      active = false;
+      observer.disconnect();
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      pendingBounds = null;
+    };
+  }, [mode]);
 
   function navigate(value: string) {
     const normalized = normalizeBrowserUrl(value);

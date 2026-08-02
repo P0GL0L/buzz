@@ -1000,6 +1000,7 @@ declare global {
       command: string;
       payload: unknown;
     }>;
+    __BUZZ_E2E_NATIVE_BROWSER__?: boolean;
     __BUZZ_E2E_WEBVIEW_ZOOM__?: number;
     __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
       channelName: string;
@@ -9405,6 +9406,7 @@ export function maybeInstallE2eTauriMocks() {
   window.__BUZZ_E2E_COMMANDS__ = [];
   window.__BUZZ_E2E_COMMAND_PAYLOADS__ = [];
   window.__BUZZ_E2E_COMMAND_LOG__ = [];
+  window.__BUZZ_E2E_NATIVE_BROWSER__ = false;
   window.__BUZZ_E2E_SIGNED_EVENTS__ = [];
   window.__BUZZ_E2E_WEBVIEW_ZOOM__ = 1;
   window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__ = ({
@@ -11386,9 +11388,11 @@ export function maybeInstallE2eTauriMocks() {
       case "open_workspace_browser":
         // Browser-based E2E cannot host a Tauri child webview. Returning the
         // explicit fallback mode exercises the retained sandboxed iframe path.
+        // A test-only native state lets lifecycle and bounds scheduling run
+        // without pretending that Chromium contains the macOS child webview.
         return {
           version: 1,
-          mode: "fallback",
+          mode: window.__BUZZ_E2E_NATIVE_BROWSER__ ? "native" : "fallback",
           currentUrl: (payload as { url: string }).url,
           title: null,
           loading: false,

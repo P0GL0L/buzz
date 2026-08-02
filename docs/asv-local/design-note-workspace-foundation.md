@@ -118,7 +118,10 @@ and closing the browser preserves the selected channel and thread underneath;
 at narrow window widths the two columns compress within their explicit minimums
 rather than changing into an overlapping sheet. The divider occupies a dedicated
 gutter outside the native child webview and captures the active pointer so
-webpage content cannot steal or strand the resize gesture.
+webpage content cannot steal or strand the resize gesture. Pointer movement is
+coalesced to one layout update per display frame. Native child-webview geometry
+uses one observer and a latest-bounds-wins queue with at most one Tauri request
+in flight, preventing resize events from outrunning macOS webview layout.
 
 ### Voice dictation
 

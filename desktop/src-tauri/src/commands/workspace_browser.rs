@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent, WebviewBuilder};
-use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl};
+use tauri::{Emitter, LogicalPosition, LogicalSize, Manager, Rect, State, WebviewUrl};
 
 const WEBVIEW_LABEL: &str = "buzz-workspace-browser";
 const STATE_EVENT: &str = "workspace-browser-state";
@@ -364,8 +364,10 @@ fn browser_webview(app: &tauri::AppHandle) -> Result<tauri::Webview, String> {
 fn set_bounds(webview: &tauri::Webview, bounds: &BrowserBounds) -> Result<(), String> {
     bounds.validate()?;
     webview
-        .set_position(LogicalPosition::new(bounds.x, bounds.y))
-        .and_then(|_| webview.set_size(LogicalSize::new(bounds.width, bounds.height)))
+        .set_bounds(Rect {
+            position: LogicalPosition::new(bounds.x, bounds.y).into(),
+            size: LogicalSize::new(bounds.width, bounds.height).into(),
+        })
         .map_err(|error| format!("failed to align native browser: {error}"))
 }
 

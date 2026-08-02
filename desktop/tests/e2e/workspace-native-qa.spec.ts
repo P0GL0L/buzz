@@ -334,3 +334,124 @@ test("browser panel covers navigation, blocked-embed fallback, restart, and keyb
   await page.reload();
   await expect(page.getByTestId("workspace-panel")).toHaveCount(0);
 });
+
+test("native browser resize coalesces geometry and keeps one browser lifecycle", async ({
+  page,
+}) => {
+  await page.evaluate(() => {
+    const browserWindow = window as Window & {
+      __BUZZ_E2E_NATIVE_BROWSER__?: boolean;
+      __BUZZ_E2E_EMIT_MOCK_MESSAGE__?: (input: {
+        channelName: string;
+        content: string;
+      }) => void;
+    };
+    browserWindow.__BUZZ_E2E_NATIVE_BROWSER__ = true;
+    browserWindow.__BUZZ_E2E_EMIT_MOCK_MESSAGE__?.({
+      channelName: "general",
+      content: "Native resize: https://example.com/native-resize",
+    });
+  });
+
+  const link = page.getByRole("link", {
+    name: "https://example.com/native-resize",
+  });
+  await link.evaluate((element) =>
+    element.dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
+    ),
+  );
+  await page
+    .locator("[data-link-context-menu]")
+    .getByRole("button", { name: "Open in Buzz browser" })
+    .click();
+  await expect(page.getByText("Native browser active")).toBeVisible();
+  await page.waitForTimeout(600);
+
+  const commandCount = (command: string) =>
+    page.evaluate(
+      (commandName) =>
+        (
+          window as Window & {
+            __BUZZ_E2E_COMMAND_LOG__?: Array<{ command: string }>;
+          }
+        ).__BUZZ_E2E_COMMAND_LOG__?.filter(
+          (entry) => entry.command === commandName,
+        ).length ?? 0,
+      command,
+    );
+  expect(await commandCount("open_workspace_browser")).toBe(1);
+  expect(await commandCount("close_workspace_browser")).toBe(0);
+  const boundsCommandsBeforeDrag = await commandCount(
+    "update_workspace_browser_bounds",
+  );
+
+  const panel = page.getByTestId("workspace-panel");
+  const handle = page.getByRole("button", { name: "Resize workspace" });
+  const [panelBefore, handleBox] = await Promise.all([
+    panel.boundingBox(),
+    handle.boundingBox(),
+  ]);
+  expect(panelBefore).not.toBeNull();
+  expect(handleBox).not.toBeNull();
+  await handle.evaluate(
+    (element, point) => {
+      const pointerId = 41;
+      element.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          buttons: 1,
+          clientX: point.x,
+          clientY: point.y,
+          pointerId,
+        }),
+      );
+      for (let step = 1; step <= 80; step += 1) {
+        window.dispatchEvent(
+          new PointerEvent("pointermove", {
+            bubbles: true,
+            buttons: 1,
+            clientX: point.x + (120 * step) / 80,
+            clientY: point.y,
+            pointerId,
+          }),
+        );
+      }
+      window.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          clientX: point.x + 120,
+          clientY: point.y,
+          pointerId,
+        }),
+      );
+    },
+    {
+      x: (handleBox?.x ?? 0) + (handleBox?.width ?? 0) / 2,
+      y: (handleBox?.y ?? 0) + 240,
+    },
+  );
+  await expect
+    .poll(async () => (await panel.boundingBox())?.width ?? 0)
+    .toBeLessThan((panelBefore?.width ?? 0) - 90);
+  await page.waitForTimeout(150);
+  const boundsCommandsAfterDrag = await page.evaluate(() =>
+    (
+      window as Window & {
+        __BUZZ_E2E_COMMAND_LOG__?: Array<{
+          command: string;
+          payload?: unknown;
+        }>;
+      }
+    ).__BUZZ_E2E_COMMAND_LOG__?.filter(
+      (entry) => entry.command === "update_workspace_browser_bounds",
+    ),
+  );
+  expect(
+    (boundsCommandsAfterDrag?.length ?? 0) - boundsCommandsBeforeDrag,
+    JSON.stringify(boundsCommandsAfterDrag?.slice(boundsCommandsBeforeDrag)),
+  ).toBeLessThanOrEqual(3);
+
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+});

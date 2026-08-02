@@ -267,7 +267,7 @@ export function WorkspacePanel({
       aria-label={isArtifact ? "Artifact reader" : "Buzz browser"}
       className={cn(
         "group/workspace-panel relative flex h-full min-w-0 shrink-0 flex-row overflow-hidden bg-background",
-        "animate-in slide-in-from-right duration-200",
+        "animate-in fade-in transition-none [animation-duration:150ms]",
       )}
       data-testid="workspace-panel"
       style={{ maxWidth: panelWidth.maxWidth, width: panelWidth.widthPx }}
