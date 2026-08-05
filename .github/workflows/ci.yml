@@ -955,7 +955,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p desktop/src-tauri/binaries
-          for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+          for bin in buzz-acp buzz-cursor-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
             touch "desktop/src-tauri/binaries/${bin}-${TARGET}.exe"
           done
       - name: Clippy (workspace)
@@ -1028,6 +1028,7 @@ jobs:
           TARGET=$(rustc -vV | sed -n 's|host: ||p')
           mkdir -p desktop/src-tauri/binaries
           touch "desktop/src-tauri/binaries/buzz-acp-$TARGET"
+          touch "desktop/src-tauri/binaries/buzz-cursor-acp-$TARGET"
           touch "desktop/src-tauri/binaries/buzz-agent-$TARGET"
           touch "desktop/src-tauri/binaries/buzz-dev-mcp-$TARGET"
           touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"

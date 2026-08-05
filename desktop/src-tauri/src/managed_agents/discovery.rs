@@ -10,8 +10,10 @@ use crate::managed_agents::{
     HarnessSource,
 };
 
+mod cursor_runtime;
 mod runtime_metadata;
 
+use cursor_runtime::CURSOR_RUNTIME;
 pub(crate) use runtime_metadata::KnownAcpRuntime;
 
 const GOOSE_AVATAR_URL: &str = "https://goose-docs.ai/img/logo_dark.png";
@@ -169,6 +171,7 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         // Verified: `codex login status` exits 0 when logged in, non-zero otherwise.
         auth_probe_args: Some(&["codex", "login", "status"]),
     },
+    CURSOR_RUNTIME,
     KnownAcpRuntime {
         id: "buzz-agent",
         label: "Buzz Agent",
@@ -502,16 +505,21 @@ fn profile_target_dirs(root: &Path) -> [PathBuf; 2] {
 }
 
 fn command_search_dirs() -> Vec<PathBuf> {
-    let mut dirs = profile_target_dirs(&workspace_root_dir()).to_vec();
+    // A packaged app must use the sidecars that were signed and shipped beside
+    // its own executable. On a developer machine, workspace target directories
+    // may also exist; checking those first silently substitutes an unbundled
+    // binary and defeats package verification. During `tauri dev`, the current
+    // executable already lives in `target/debug`, so this ordering still picks
+    // the freshly-built development sidecars.
+    let mut dirs = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .into_iter()
+        .collect::<Vec<_>>();
+    dirs.extend(profile_target_dirs(&workspace_root_dir()));
     if let Ok(current_dir) = std::env::current_dir() {
         dirs.extend(profile_target_dirs(&current_dir));
     }
-
-    dirs.extend(
-        std::env::current_exe()
-            .ok()
-            .and_then(|path| path.parent().map(Path::to_path_buf)),
-    );
     dirs.into_iter().fold(Vec::new(), |mut unique, dir| {
         if !unique.contains(&dir) {
             unique.push(dir);
@@ -561,10 +569,11 @@ fn resolve_cache() -> &'static std::sync::Mutex<std::collections::HashMap<String
     CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Resolve a command to an absolute path, caching results for the app lifetime.
-/// The cache eliminates redundant login-shell spawns when multiple agents share
-/// the same binaries (e.g. `npx`, `uvx`).
+/// Resolve a command to an absolute path, caching shared runtime lookups.
 pub fn resolve_command(command: &str) -> Option<PathBuf> {
+    if let Some(provider) = crate::managed_agents::provider_command_path(command) {
+        return Some(provider);
+    }
     if let Some(managed) = resolve_buzz_managed_command(command) {
         return Some(managed);
     }
@@ -1438,10 +1447,8 @@ pub(crate) fn discover_acp_runtime_availability(runtime_id: &str) -> Option<AcpA
 
 // ── Tier-2 preset harnesses ────────────────────────────────────────────────
 //
-// Static data for well-known ACP harnesses that have bundled logos and
-// verified command/args. PATH-probed at discovery time (Detected badge);
-// not editable or deletable by users. Logos are bundled assets referenced
-// by id in the frontend `RUNTIME_LOGOS` map.
+// Well-known ACP harnesses with verified command/args, PATH-probed at discovery;
+// not editable or deletable. Logos are keyed by id in `RUNTIME_LOGOS`.
 
 struct PresetHarness {
     id: &'static str,
@@ -1450,19 +1457,11 @@ struct PresetHarness {
     args: &'static [&'static str],
     install_instructions_url: &'static str,
     install_hint: &'static str,
-    /// Vendor CLI the ACP command wraps, when the preset is an adapter
-    /// (e.g. Amp's `amp-acp` wraps the separately-installed `amp` CLI).
-    /// Consulted only when the adapter is absent, so `AdapterMissing`
-    /// replaces the misleading `NotInstalled` when the CLI is present but
-    /// the adapter is not. Deliberately NOT fed through the builtins'
-    /// full `classify_runtime` predicate: that would flip
-    /// adapter-present/CLI-absent from today's `Available` to `CliMissing`
-    /// (unselectable), and presets carry a single flat `install_hint`, so
-    /// the `CliMissing` copy would tell the user to install the adapter
-    /// they already have. `None` when the command IS the vendor CLI.
+    /// Vendor CLI wrapped by an ACP adapter. Used only to distinguish an absent
+    /// adapter from an absent installation without changing adapter-present
+    /// availability. `None` when the command is the vendor CLI.
     underlying_cli: Option<&'static str>,
 }
-
 /// Build the catalog entry for one preset harness through an injectable
 /// resolver — the seam the preset loop consumes and tests bind.
 ///
@@ -1539,15 +1538,6 @@ fn preset_catalog_entry(
 
 const PRESET_HARNESSES: &[PresetHarness] = &[
     PresetHarness {
-        id: "cursor",
-        label: "Cursor",
-        command: "cursor-agent",
-        args: &["acp"],
-        install_instructions_url: "https://cursor.com/downloads",
-        install_hint: "Buzz talks to Cursor through the cursor-agent CLI's ACP mode.",
-        underlying_cli: None,
-    },
-    PresetHarness {
         id: "omp",
         label: "Oh My Pi",
         command: "omp",
@@ -1564,6 +1554,24 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
         install_instructions_url: "https://build.x.ai/docs",
         install_hint: "Buzz talks to Grok Build through its CLI's agent stdio mode.",
         underlying_cli: None,
+    },
+    PresetHarness {
+        id: "gemini",
+        label: "Gemini CLI",
+        command: "gemini",
+        args: &["--acp"],
+        install_instructions_url: "https://github.com/google-gemini/gemini-cli",
+        install_hint: "Buzz talks to Gemini CLI through its official ACP mode. Personal Google AI plans use the separate Antigravity adapter.",
+        underlying_cli: None,
+    },
+    PresetHarness {
+        id: "antigravity",
+        label: "Google Antigravity",
+        command: "buzz-antigravity-acp",
+        args: &[],
+        install_instructions_url: "https://antigravity.google/docs/cli/install",
+        install_hint: "Buzz runs each personal-plan Antigravity request as one bounded stream-json task through its bundled ACP adapter.",
+        underlying_cli: Some("agy"),
     },
     PresetHarness {
         id: "opencode",
@@ -1619,10 +1627,7 @@ const PRESET_HARNESSES: &[PresetHarness] = &[
     },
 ];
 
-/// Return the static preset harness definitions as `HarnessDefinition` values.
-///
-/// Used by `warm_harness_registry_from_dir` to seed the loaded-harness registry
-/// at startup before the frontend triggers a full discovery run.
+/// Preset definitions used to warm the harness registry before discovery.
 pub(crate) fn preset_harness_definitions(
 ) -> Vec<crate::managed_agents::custom_harnesses::HarnessDefinition> {
     PRESET_HARNESSES
@@ -1641,23 +1646,16 @@ pub(crate) fn preset_harness_definitions(
         .collect()
 }
 
-/// Return the static slice of preset harness IDs.
-///
-/// Used by `check_id_collision` in `custom_harnesses` to derive the reserved-ID
-/// set from the single source of truth (`PRESET_HARNESSES`) rather than a
-/// hand-maintained copy.  Adding a preset automatically reserves its ID.
+/// Preset IDs reserved by custom harness collision checks.
 pub(crate) fn preset_harness_ids() -> &'static [&'static str] {
-    // `PRESET_HARNESSES` is `'static`; we project its `id` fields.
-    // Computed once via OnceLock to avoid repeated allocations on hot paths.
+    // Computed once from the static preset catalog.
     use std::sync::OnceLock;
     static IDS: OnceLock<Vec<&'static str>> = OnceLock::new();
     IDS.get_or_init(|| PRESET_HARNESSES.iter().map(|p| p.id).collect())
         .as_slice()
 }
 
-/// Discover all ACP runtimes, optionally merging user-defined custom harnesses
-/// from `custom_harnesses_dir`.
-///
+/// Discover all ACP runtimes and optionally merge user-defined harnesses.
 /// This is the primary entry point used by the Tauri command layer. It:
 /// 1. Builds entries for all compiled-in (`Builtin`) runtimes.
 /// 2. Runs auth probes in parallel.

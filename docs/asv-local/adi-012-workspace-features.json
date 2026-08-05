@@ -1,0 +1,17 @@
+{
+  "schema_version": "adi.verify.v1",
+  "build_dir": "docs/asv-local",
+  "mode": "static-heuristics (no compile/render/device; necessary, never sufficient)",
+  "declared_platforms": [],
+  "detected_stacks": [],
+  "score_results": [],
+  "findings": [
+    {
+      "level": "HARD-FAIL",
+      "flag": "USAGE",
+      "where": "docs/asv-local",
+      "msg": "no supported app sources found (SwiftUI, Compose, Expo, or PWA) — nothing to verify"
+    }
+  ],
+  "exit": 2
+}

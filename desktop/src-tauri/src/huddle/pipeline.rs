@@ -260,7 +260,7 @@ pub(crate) async fn maybe_start_tts_pipeline(state: &AppState) -> Result<bool, S
 /// Fix 4: `text_rx` is a `tokio::sync::mpsc::Receiver` — fully async `.recv().await`
 ///        never blocks a Tokio worker thread (unlike std `recv_timeout`).
 pub(crate) fn spawn_transcription_task(
-    mut text_rx: tokio::sync::mpsc::Receiver<String>,
+    mut text_rx: tokio::sync::mpsc::Receiver<stt::SttOutput>,
     channel_uuid: Uuid,
     agent_pubkeys_arc: Arc<Mutex<Vec<String>>>,
     session_generation: Arc<AtomicU64>,
@@ -279,7 +279,10 @@ pub(crate) fn spawn_transcription_task(
     tauri::async_runtime::spawn(async move {
         // recv().await yields (not blocks) until text arrives or sender is dropped.
         // When the STT worker exits and drops its Sender, recv() returns None → loop ends.
-        while let Some(t) = text_rx.recv().await {
+        while let Some(output) = text_rx.recv().await {
+            let stt::SttOutput::Transcript(t) = output else {
+                continue;
+            };
             if t.is_empty() {
                 continue;
             }

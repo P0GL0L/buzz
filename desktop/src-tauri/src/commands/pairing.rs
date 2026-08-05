@@ -95,7 +95,7 @@ pub async fn start_pairing(
     let pubkey_hex = keys.public_key().to_hex();
 
     let ws_url = relay_ws_url_with_override(&state);
-    let http_url = relay_api_base_url_with_override(&state);
+    let local_http_url = relay_api_base_url_with_override(&state);
 
     // NIP-43 relays gate connections on membership, so an unpaired peer can't
     // reach the main relay yet — it must go through the /pair sidecar. Open
@@ -103,7 +103,12 @@ pub async fn start_pairing(
     // own NIP-11 declaration of NIP-43 support rather than `auth_required`,
     // which is also true for plain NIP-42 / NIP-OA relays where the main
     // relay is reachable.
-    let pairing_relay_url = resolve_pairing_relay_url(&ws_url, probe_pairing_relay(&ws_url).await)?;
+    let relay_probe = probe_pairing_relay(&ws_url).await;
+    let pairing_relay_url = resolve_pairing_relay_url(&ws_url, relay_probe.pairing_relay)?;
+    let http_url = resolve_pairing_payload_relay_url(
+        &local_http_url,
+        relay_probe.remote_relay_url.as_deref(),
+    )?;
 
     let (session, qr_payload) = PairingSession::new_source(pairing_relay_url.clone());
     let qr_uri = encode_qr(&qr_payload);
@@ -476,16 +481,31 @@ enum PairingRelay {
     MainRelay,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+struct PairingRelayProbe {
+    pairing_relay: PairingRelay,
+    remote_relay_url: Option<String>,
+}
+
+impl PairingRelayProbe {
+    fn local_only() -> Self {
+        Self {
+            pairing_relay: PairingRelay::MainRelay,
+            remote_relay_url: None,
+        }
+    }
+}
+
 /// Prefer the relay-advertised dedicated pairing URL. The legacy `/pair`
 /// convention remains as a compatibility fallback for NIP-43 relays that do
 /// not advertise the extension yet.
-async fn probe_pairing_relay(relay_url: &str) -> PairingRelay {
+async fn probe_pairing_relay(relay_url: &str) -> PairingRelayProbe {
     let http_url = if let Some(rest) = relay_url.strip_prefix("wss://") {
         format!("https://{rest}")
     } else if let Some(rest) = relay_url.strip_prefix("ws://") {
         format!("http://{rest}")
     } else {
-        return PairingRelay::MainRelay;
+        return PairingRelayProbe::local_only();
     };
 
     let client = reqwest::Client::builder()
@@ -500,15 +520,48 @@ async fn probe_pairing_relay(relay_url: &str) -> PairingRelay {
         .await
     {
         Ok(response) => response,
-        Err(_) => return PairingRelay::MainRelay,
+        Err(_) => return PairingRelayProbe::local_only(),
     };
 
     let json: serde_json::Value = match resp.json().await {
         Ok(value) => value,
-        Err(_) => return PairingRelay::MainRelay,
+        Err(_) => return PairingRelayProbe::local_only(),
     };
 
-    pairing_relay_from_nip11(&json)
+    PairingRelayProbe {
+        pairing_relay: pairing_relay_from_nip11(&json),
+        remote_relay_url: remote_relay_from_nip11(&json),
+    }
+}
+
+fn remote_relay_from_nip11(json: &serde_json::Value) -> Option<String> {
+    let value = json.get("remote_relay_url")?.as_str()?;
+    let parsed = url::Url::parse(value).ok()?;
+    (parsed.scheme() == "wss"
+        && parsed.host_str().is_some()
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && parsed.query().is_none()
+        && parsed.fragment().is_none())
+    .then(|| value.to_string())
+}
+
+fn resolve_pairing_payload_relay_url(
+    local_http_url: &str,
+    remote_relay_url: Option<&str>,
+) -> Result<String, String> {
+    let Some(remote_relay_url) = remote_relay_url else {
+        return Ok(local_http_url.to_string());
+    };
+    let mut parsed =
+        url::Url::parse(remote_relay_url).map_err(|e| format!("invalid remote relay URL: {e}"))?;
+    if parsed.scheme() != "wss" {
+        return Err("remote relay URL must use wss".to_string());
+    }
+    parsed
+        .set_scheme("https")
+        .map_err(|_| "failed to convert remote relay URL to HTTPS".to_string())?;
+    Ok(parsed.to_string().trim_end_matches('/').to_string())
 }
 
 fn resolve_pairing_relay_url(
@@ -626,7 +679,8 @@ mod pairing_generation_tests {
 #[cfg(test)]
 mod pairing_relay_tests {
     use super::{
-        pairing_relay_from_nip11, probe_pairing_relay, resolve_pairing_relay_url, PairingRelay,
+        pairing_relay_from_nip11, probe_pairing_relay, remote_relay_from_nip11,
+        resolve_pairing_payload_relay_url, resolve_pairing_relay_url, PairingRelay,
     };
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -646,7 +700,7 @@ mod pairing_relay_tests {
                 .to_ascii_lowercase()
                 .contains("accept: application/nostr+json"));
 
-            let body = r#"{"pairing_relay_url":"ws://127.0.0.1:5000"}"#;
+            let body = r#"{"pairing_relay_url":"ws://127.0.0.1:5000","remote_relay_url":"wss://asv-buzz.example.ts.net"}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/nostr+json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
@@ -657,9 +711,14 @@ mod pairing_relay_tests {
                 .expect("write response");
         });
 
+        let probe = probe_pairing_relay(&format!("ws://{addr}")).await;
         assert_eq!(
-            probe_pairing_relay(&format!("ws://{addr}")).await,
+            probe.pairing_relay,
             PairingRelay::Configured("ws://127.0.0.1:5000".to_string())
+        );
+        assert_eq!(
+            probe.remote_relay_url.as_deref(),
+            Some("wss://asv-buzz.example.ts.net")
         );
         server.await.expect("NIP-11 server task");
     }
@@ -728,5 +787,36 @@ mod pairing_relay_tests {
         .expect("resolve main pairing relay");
 
         assert_eq!(resolved, "wss://sprout-oss.stage.blox.sqprod.co");
+    }
+
+    #[test]
+    fn remote_relay_is_transferred_as_https_and_local_fallback_is_preserved() {
+        let document = serde_json::json!({
+            "remote_relay_url": "wss://asv-buzz.example.ts.net"
+        });
+        let remote = remote_relay_from_nip11(&document);
+        assert_eq!(
+            resolve_pairing_payload_relay_url("http://localhost:3000", remote.as_deref())
+                .expect("resolve remote relay"),
+            "https://asv-buzz.example.ts.net"
+        );
+        assert_eq!(
+            resolve_pairing_payload_relay_url("http://localhost:3000", None)
+                .expect("preserve local fallback"),
+            "http://localhost:3000"
+        );
+    }
+
+    #[test]
+    fn unsafe_remote_relay_metadata_is_ignored() {
+        for value in [
+            "ws://asv-buzz.example.ts.net",
+            "https://asv-buzz.example.ts.net",
+            "wss://user:secret@asv-buzz.example.ts.net",
+            "wss://asv-buzz.example.ts.net?token=secret",
+        ] {
+            let document = serde_json::json!({ "remote_relay_url": value });
+            assert_eq!(remote_relay_from_nip11(&document), None);
+        }
     }
 }

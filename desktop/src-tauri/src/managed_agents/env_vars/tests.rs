@@ -181,6 +181,16 @@ fn reserved_keys_include_relay_url() {
     assert!(merged.is_empty());
 }
 
+#[test]
+fn reserved_keys_include_provider_storage_roots() {
+    for key in ["GROK_HOME", "GEMINI_CLI_HOME"] {
+        assert!(is_reserved_env_key(key), "{key} should be reserved");
+        let agent = map(&[(key, "/tmp/global-profile")]);
+        let merged = merged_user_env(&BTreeMap::new(), &agent);
+        assert!(merged.is_empty(), "{key} should be stripped");
+    }
+}
+
 // ── validate_user_env_keys ─────────────────────────────────────────
 
 #[test]

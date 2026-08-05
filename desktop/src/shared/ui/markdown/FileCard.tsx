@@ -1,27 +1,16 @@
 import * as React from "react";
-import { Download, FileText } from "lucide-react";
+import { Download, Eye, FileText } from "lucide-react";
 import { toast } from "sonner";
 
+import { requestOpenWorkspaceResource } from "@/features/workspace/openWorkspaceResourceEvent";
 import { invokeTauri } from "@/shared/api/tauri";
+import { Button } from "@/shared/ui/button";
 import { useSmoothCorners } from "@/shared/ui/smoothCorners";
-
-/** Human-readable byte size: "820 B", "12.4 KB", "3.1 MB". */
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes < 0) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
-  let size = bytes / 1024;
-  let i = 0;
-  while (size >= 1024 && i < units.length - 1) {
-    size /= 1024;
-    i += 1;
-  }
-  return `${size < 10 ? size.toFixed(1) : Math.round(size)} ${units[i]}`;
-}
+import { formatWorkspaceFileSize } from "@/features/workspace/lib/workspaceResource";
 
 /**
  * File card for a generic (non-image, non-video) attachment: icon, filename,
- * size, and a download action.
+ * size, an in-app reader action, and a separate download action.
  *
  * Downloads go through the native `download_file` Tauri command (HTTP inside
  * the app's tunnel + a save dialog), not a plain `<a download>` link. A bare
@@ -32,28 +21,33 @@ function formatFileSize(bytes: number): string {
 export function FileCard({
   href,
   filename,
+  mime,
   size,
+  sha256,
+  artifactId,
+  artifactVersion,
+  artifactParent,
+  artifactSource,
+  artifactCorrelation,
 }: {
   href: string;
   filename: string;
+  mime?: string;
   size?: number;
+  sha256?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 }) {
-  const cardRef = React.useRef<HTMLButtonElement | null>(null);
-  const sizeLabel = size != null ? formatFileSize(size) : "";
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
+  const sizeLabel = formatWorkspaceFileSize(size);
   useSmoothCorners(cardRef);
 
   return (
-    <button
+    <div
       ref={cardRef}
-      type="button"
-      onClick={() => {
-        invokeTauri("download_file", { url: href, filename }).catch(
-          (err: unknown) => {
-            const msg = err instanceof Error ? err.message : "Download failed";
-            toast.error(msg);
-          },
-        );
-      }}
       data-testid="file-card"
       className="my-1 inline-flex max-w-sm items-center gap-3 rounded-2xl border border-border/70 bg-muted/40 px-3 py-2 text-left no-underline transition-colors hover:bg-muted/70"
       style={{ borderRadius: "1rem" }}
@@ -71,7 +65,59 @@ export function FileCard({
           </span>
         ) : null}
       </span>
-      <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
-    </button>
+      <span className="flex shrink-0 items-center gap-1">
+        <Button
+          aria-label={`Open ${filename} in workspace`}
+          data-testid="file-card-preview"
+          onClick={() =>
+            requestOpenWorkspaceResource({
+              kind: "artifact",
+              url: href,
+              filename,
+              mime,
+              size,
+              sha256,
+              artifactId,
+              version: artifactVersion,
+              parentEventId: artifactParent,
+              source:
+                artifactSource === "agent-result" ||
+                artifactSource === "browser-download" ||
+                artifactSource === "browser-screenshot" ||
+                artifactSource === "generated" ||
+                artifactSource === "revision"
+                  ? artifactSource
+                  : "attachment",
+              correlationId: artifactCorrelation,
+            })
+          }
+          size="icon-xs"
+          title="Open in workspace"
+          type="button"
+          variant="ghost"
+        >
+          <Eye />
+        </Button>
+        <Button
+          aria-label={`Download ${filename}`}
+          data-testid="file-card-download"
+          onClick={() => {
+            invokeTauri("download_file", { url: href, filename }).catch(
+              (err: unknown) => {
+                const msg =
+                  err instanceof Error ? err.message : "Download failed";
+                toast.error(msg);
+              },
+            );
+          }}
+          size="icon-xs"
+          title="Download"
+          type="button"
+          variant="ghost"
+        >
+          <Download />
+        </Button>
+      </span>
+    </div>
   );
 }

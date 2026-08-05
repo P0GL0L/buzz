@@ -18,7 +18,10 @@ async fn main() -> anyhow::Result<()> {
     let message = args[3..].join(" ");
 
     let url = std::env::var("BUZZ_RELAY_URL").unwrap_or_else(|_| "ws://localhost:3000".into());
-    let keys = Keys::generate();
+    let keys = match std::env::var("BUZZ_PRIVATE_KEY") {
+        Ok(secret) => Keys::parse(&secret)?,
+        Err(_) => Keys::generate(),
+    };
     println!("Sender pubkey: {}", keys.public_key().to_hex());
 
     let mut client = BuzzTestClient::connect(&url, &keys).await?;
@@ -34,6 +37,7 @@ async fn main() -> anyhow::Result<()> {
         println!("✅ @mention sent: {}", ok.event_id);
     } else {
         eprintln!("❌ Rejected: {}", ok.message);
+        std::process::exit(1);
     }
     Ok(())
 }

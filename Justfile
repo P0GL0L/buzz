@@ -2,6 +2,12 @@
 
 set dotenv-load := true
 
+# Docker Desktop does not always install a global CLI symlink on macOS. Keep
+# the documented `just` workflows self-contained while leaving other platforms
+# on their existing PATH.
+docker_desktop_path := if os() == "macos" { "/Applications/Docker.app/Contents/Resources/bin:" } else { "" }
+export PATH := docker_desktop_path + env_var("PATH")
+
 desktop_dir := "desktop"
 desktop_tauri_manifest := "desktop/src-tauri/Cargo.toml"
 web_dir := "web"
@@ -155,27 +161,58 @@ _ensure-sidecar-stubs:
     set -euo pipefail
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     mkdir -p desktop/src-tauri/binaries
-    for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+    for bin in buzz-acp buzz-antigravity-acp buzz-cursor-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
         touch "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
 
-# Ensure Docker dev services (Postgres, Redis, etc.) are running and healthy
-_ensure-services:
+# Start Docker Desktop without opening its dashboard, then wait for the engine.
+# Linux and other non-Desktop environments retain the existing explicit error.
+_ensure-docker-engine:
     #!/usr/bin/env bash
     set -euo pipefail
-    pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-    redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
-    if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
+    if docker info >/dev/null 2>&1; then
+        exit 0
+    fi
+    if [[ "$(uname -s)" != "Darwin" ]] || ! docker desktop version >/dev/null 2>&1; then
+        echo "Error: Docker daemon is not running. Start Docker and try again." >&2
+        exit 1
+    fi
+    echo "Starting Docker Desktop in the background..."
+    docker desktop start >/dev/null
+    for _ in $(seq 1 120); do
+        if docker info >/dev/null 2>&1; then
+            echo "Docker Desktop engine is ready"
+            exit 0
+        fi
+        sleep 1
+    done
+    echo "Error: Docker Desktop did not become ready within 120 seconds." >&2
+    exit 1
+
+# Ensure Docker dev services (Postgres, Redis, etc.) are running and healthy
+_ensure-services: _ensure-docker-engine
+    #!/usr/bin/env bash
+    set -euo pipefail
+    services_ready() {
+        local pg redis keycloak minio prometheus adminer
+        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
+        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
+        keycloak=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-keycloak 2>/dev/null || echo "not_found")
+        minio=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-minio 2>/dev/null || echo "not_found")
+        prometheus=$(docker inspect --format '{{"{{"}}.State.Running{{"}}"}}' buzz-prometheus 2>/dev/null || echo "not_found")
+        adminer=$(docker inspect --format '{{"{{"}}.State.Running{{"}}"}}' buzz-adminer 2>/dev/null || echo "not_found")
+        [[ "$pg" == "healthy" && "$redis" == "healthy" && "$keycloak" == "healthy" &&
+           "$minio" == "healthy" && "$prometheus" == "true" && "$adminer" == "true" ]]
+    }
+    if services_ready; then
         echo "Services already healthy"
         exit 0
     fi
     echo "Starting services..."
-    docker compose up -d || true
+    docker compose up -d
     echo -n "Waiting for services"
-    for i in $(seq 1 40); do
-        pg=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-postgres 2>/dev/null || echo "not_found")
-        redis=$(docker inspect --format '{{"{{"}}.State.Health.Status{{"}}"}}' buzz-redis 2>/dev/null || echo "not_found")
-        if [[ "$pg" == "healthy" && "$redis" == "healthy" ]]; then
+    for i in $(seq 1 60); do
+        if services_ready; then
             echo " ready"
             exit 0
         fi
@@ -200,7 +237,10 @@ desktop-tauri-check: _ensure-sidecar-stubs
 
 # Run desktop Tauri Rust unit tests
 desktop-tauri-test: _ensure-sidecar-stubs
-    cd desktop/src-tauri && cargo test
+    # Several process-probe tests intentionally launch child processes while
+    # the pre-push hook runs other suites concurrently. Serialize this suite so
+    # transient process/FD pressure cannot turn successful probes into None.
+    cd desktop/src-tauri && RUST_TEST_THREADS=1 cargo test
 
 # Verify compiled-flag behavior under both compile states (clean + internal).
 # Runs the observer_archive focused test twice with independently supplied
@@ -235,6 +275,8 @@ desktop-release-build target="aarch64-apple-darwin":
     TARGET={{target}}
     mkdir -p desktop/src-tauri/binaries
     touch "desktop/src-tauri/binaries/buzz-acp-$TARGET"
+    touch "desktop/src-tauri/binaries/buzz-antigravity-acp-$TARGET"
+    touch "desktop/src-tauri/binaries/buzz-cursor-acp-$TARGET"
     touch "desktop/src-tauri/binaries/buzz-agent-$TARGET"
     touch "desktop/src-tauri/binaries/buzz-dev-mcp-$TARGET"
     touch "desktop/src-tauri/binaries/git-credential-nostr-$TARGET"
@@ -361,6 +403,35 @@ desktop-screenshot *ARGS:
     fi
     node tests/helpers/screenshot.mjs {{ARGS}}
 
+# Verify and fingerprint the isolated native macOS development lane.
+desktop-native-qa-preflight:
+    ./scripts/desktop-native-qa.sh preflight
+
+# Guard the main-checkout/worktree classifier against relative git-dir drift.
+desktop-instance-env-test:
+    ./scripts/test-instance-env.sh
+
+# Run the deterministic browser-mock portion of the native workspace matrix.
+# This is web evidence only; native Tauri acceptance remains a separate gate.
+desktop-native-qa-web:
+    pnpm -C {{desktop_dir}} build:e2e
+    cd {{desktop_dir}} && pnpm exec playwright test --project=smoke workspace-native-qa.spec.ts
+
+# Verify every containerized dependency, migration state, and (optionally) the
+# host relay without changing local data.
+local-stack-verify *ARGS:
+    ./scripts/verify-local-stack.sh {{ARGS}}
+
+# Create a recoverable database backup before destructive schema experiments.
+local-stack-backup:
+    ./scripts/backup-local-stack.sh
+
+# Prove that persistent Compose services recover without deleting volumes.
+local-stack-restart-proof:
+    docker compose restart
+    just _ensure-services
+    ./scripts/verify-local-stack.sh
+
 # ─── Run ──────────────────────────────────────────────────────────────────────
 
 # Start the relay server (auto-starts Docker services if needed)
@@ -428,7 +499,7 @@ dev *ARGS: bootstrap _ensure-sidecar-stubs _ensure-migrations
             fi
         done
     fi
-    cargo build -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr -p buzz-relay
+    cargo build -p buzz-acp -p buzz-antigravity-acp -p buzz-cursor-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr -p buzz-relay
     if [[ -n "{{mesh}}" ]]; then
         export MESH_LLM_NATIVE_RUNTIME_CACHE_DIR="$(./scripts/ensure-mesh-native-runtime.sh)"
     fi
@@ -475,10 +546,10 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     #!/usr/bin/env bash
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
-    cargo build -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build -p buzz-acp -p buzz-antigravity-acp -p buzz-cursor-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
     TARGET=$(rustc -vV | sed -n 's|host: ||p')
     TARGET_DIR=$(cargo metadata --format-version 1 --no-deps | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).target_directory")
-    for bin in buzz-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
+    for bin in buzz-acp buzz-antigravity-acp buzz-cursor-acp buzz-agent buzz-dev-mcp git-credential-nostr buzz; do
         cp "${TARGET_DIR}/debug/${bin}" "desktop/src-tauri/binaries/${bin}-${TARGET}"
         chmod +x "desktop/src-tauri/binaries/${bin}-${TARGET}"
     done
@@ -491,6 +562,10 @@ desktop-standalone *ARGS: _ensure-sidecar-stubs
     source ../scripts/instance-env.sh
     INSTANCE_ID=$(node -e "console.log(JSON.parse(process.env.BUZZ_TAURI_CONFIG).identifier)")
     export BUZZ_DEV_KEYRING_SERVICE="buzz-desktop-dev.${BUZZ_INSTANCE_SLUG:-main}"
+    # Standalone is the identity-isolation lane. It must create and retain its
+    # own key; importing a production or legacy dev key is intentionally
+    # disabled for the lifetime of this process.
+    export BUZZ_ISOLATED_DEV_IDENTITY=1
     if [[ -n "{{fresh}}" ]]; then
         ../scripts/reset-desktop-standalone-state.sh "$INSTANCE_ID" "$BUZZ_DEV_KEYRING_SERVICE"
     fi
@@ -504,7 +579,7 @@ staging *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: staging must always start with a clean dep tree
-    cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build --release -p buzz-acp -p buzz-antigravity-acp -p buzz-cursor-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)
@@ -531,7 +606,7 @@ production *ARGS: bootstrap _ensure-sidecar-stubs
     set -euo pipefail
     export PATH="{{justfile_directory()}}/bin:$PATH"
     pnpm install  # unconditional: production must always start with a clean dep tree
-    cargo build --release -p buzz-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
+    cargo build --release -p buzz-acp -p buzz-antigravity-acp -p buzz-cursor-acp -p buzz-agent -p buzz-dev-mcp -p buzz-cli -p git-credential-nostr
     FEATURES=()
     if [[ -n "{{mesh}}" ]]; then
         FEATURES=(--features mesh-llm)

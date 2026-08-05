@@ -13,6 +13,7 @@ mod media_proxy;
 mod mesh_llm;
 #[cfg(not(feature = "mesh-llm"))]
 mod mesh_llm_stubs;
+mod microphone_lease;
 mod migration;
 #[cfg(test)]
 mod model_tests;
@@ -358,8 +359,14 @@ pub fn run() {
         .manage(BuilderlabSession::default())
         .manage(BuilderlabLogin::default())
         .manage(commands::pairing::PairingHandle::new())
+        .manage(DictationRuntime::default())
+        .manage(microphone_lease::MicrophoneLeaseRuntime::default())
+        .manage(WorkspaceBrowserRuntime::default())
         .setup(move |app| {
             let app_handle = app.handle().clone();
+            if let Ok(data_dir) = app_handle.path().app_data_dir() {
+                crate::managed_agents::register_provider_root(data_dir.join("providers"));
+            }
 
             // ── Phase 2: boot-time sentinel wipe ──────────────────────────────
             // Must run before migrations and identity resolution so the wipe
@@ -754,6 +761,33 @@ pub fn run() {
             save_png_data_url,
             download_file,
             fetch_media_bytes,
+            preview_office_artifact,
+            list_provider_connections,
+            connect_provider_connection,
+            verify_provider_connection,
+            disconnect_provider_connection,
+            list_skill_registry,
+            build_skill_request,
+            review_signed_skill_result,
+            review_signed_browser_action,
+            review_signed_browser_action_result,
+            open_workspace_browser,
+            update_workspace_browser_bounds,
+            navigate_workspace_browser,
+            workspace_browser_back,
+            workspace_browser_forward,
+            reload_workspace_browser,
+            stop_workspace_browser,
+            close_workspace_browser,
+            clear_workspace_browser_session,
+            clear_workspace_browser_profile,
+            get_workspace_browser_state,
+            extract_workspace_browser_page,
+            click_workspace_browser,
+            type_workspace_browser,
+            scroll_workspace_browser,
+            capture_workspace_browser,
+            fetch_workspace_browser_download,
             copy_image_to_clipboard,
             copy_text_to_clipboard,
             fetch_snapshot_bytes,
@@ -846,6 +880,12 @@ pub fn run() {
             get_note,
             get_note_reactions,
             get_liked_notes,
+            start_composer_dictation,
+            push_dictation_pcm,
+            finish_composer_dictation,
+            cancel_composer_dictation,
+            get_composer_dictation_status,
+            reset_composer_dictation_status,
             start_huddle,
             join_huddle,
             leave_huddle,

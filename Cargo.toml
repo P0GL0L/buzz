@@ -10,6 +10,8 @@ members = [
     "crates/buzz-search",
     "crates/buzz-audit",
     "crates/buzz-acp",
+    "crates/buzz-antigravity-acp",
+    "crates/buzz-cursor-acp",
     "crates/buzz-agent",
     "crates/sprig",
     "crates/buzz-test-client",

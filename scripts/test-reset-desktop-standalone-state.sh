@@ -28,11 +28,21 @@ export PATH="$tmp/bin:$PATH"
 [[ -d "$HOME/Library/Application Support/xyz.block.buzz.app" ]]
 [[ -f "$HOME/.buzz-dev/keep" ]]
 grep -Fx -- "delete-generic-password -s buzz-desktop-dev.example" "$HOME/security-calls" >/dev/null
+if grep -Fx -- "delete-generic-password -s buzz-desktop-dev" "$HOME/security-calls" >/dev/null; then
+    echo "scoped worktree reset must not delete the canonical legacy dev service" >&2
+    exit 1
+fi
 
 if "$repo_root/scripts/reset-desktop-standalone-state.sh" \
     xyz.block.buzz.app buzz-desktop >/dev/null 2>&1; then
     echo "expected production scope guard to reject reset" >&2
     exit 1
 fi
+
+: > "$HOME/security-calls"
+"$repo_root/scripts/reset-desktop-standalone-state.sh" \
+    xyz.block.buzz.app.dev buzz-desktop-dev.main
+grep -Fx -- "delete-generic-password -s buzz-desktop-dev.main" "$HOME/security-calls" >/dev/null
+grep -Fx -- "delete-generic-password -s buzz-desktop-dev" "$HOME/security-calls" >/dev/null
 
 echo "standalone desktop reset scope test passed"

@@ -11,6 +11,7 @@ import {
   FlaskConical,
   Keyboard,
   LayoutTemplate,
+  Library,
   MessagesSquare,
   MonitorCog,
   Moon,
@@ -83,12 +84,14 @@ import { SettingsOptionGroup, SettingsOptionRow } from "./SettingsOptionGroup";
 import { ProfileSettingsCard } from "./ProfileSettingsCard";
 import { UpdateChecker } from "../UpdateChecker";
 import { SettingsSectionHeader } from "./SettingsSectionHeader";
+import { SkillsSettingsPanel } from "./SkillsSettingsPanel";
 
 export type SettingsSection =
   | "profile"
   | "notifications"
   | "experimental"
   | "agents"
+  | "skills"
   | "channel-templates"
   | "compute"
   | "appearance"
@@ -108,6 +111,7 @@ const SETTINGS_SECTION_VALUES: readonly SettingsSection[] = [
   "notifications",
   "experimental",
   "agents",
+  "skills",
   "channel-templates",
   "compute",
   "appearance",
@@ -176,6 +180,12 @@ export const settingsSections: SettingsSectionDescriptor[] = [
     value: "agents",
     label: "Agents",
     icon: Bot,
+    featureGate: "managed-agents",
+  },
+  {
+    value: "skills",
+    label: "Skills",
+    icon: Library,
     featureGate: "managed-agents",
   },
   {
@@ -817,6 +827,8 @@ export function renderSettingsSection(
           <AgentDefaultsSettingsCard />
         </div>
       );
+    case "skills":
+      return <SkillsSettingsPanel />;
     case "channel-templates":
       return <ChannelTemplatesSettingsCard />;
     case "compute":

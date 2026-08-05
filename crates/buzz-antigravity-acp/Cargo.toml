@@ -1,0 +1,14 @@
+[package]
+name = "buzz-antigravity-acp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Bounded ACP adapter for Google Antigravity CLI one-shot tasks"
+
+[dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["io-std"] }
+tokio-util.workspace = true
+uuid.workspace = true

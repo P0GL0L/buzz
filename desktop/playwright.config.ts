@@ -1,5 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const playwrightPort = process.env.BUZZ_PLAYWRIGHT_PORT ?? "4173";
+const playwrightBaseUrl = `http://127.0.0.1:${playwrightPort}`;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   timeout: 30_000,
@@ -10,7 +13,7 @@ export default defineConfig({
     ["html", { open: "never", outputFolder: "playwright-report" }],
   ],
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: playwrightBaseUrl,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
     video: "retain-on-failure",
@@ -54,6 +57,7 @@ export default defineConfig({
         "**/doctor-cta-screenshots.spec.ts",
         "**/pubkey-display-screenshots.spec.ts",
         "**/file-attachment.spec.ts",
+        "**/workspace-native-qa.spec.ts",
         "**/image-attachment-gallery.spec.ts",
         "**/composer-image-draw.spec.ts",
         "**/video-attachment.spec.ts",
@@ -126,6 +130,8 @@ export default defineConfig({
         "**/observer-archive-policy.spec.ts",
         "**/harness-management.spec.ts",
         "**/harness-catalog-screenshots.spec.ts",
+        "**/provider-connections.spec.ts",
+        "**/skill-registry.spec.ts",
         "**/inline-custom-harness.spec.ts",
       ],
       use: {
@@ -161,9 +167,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "python3 -m http.server 4173 -d dist",
+    command: `python3 -m http.server ${playwrightPort} -d dist`,
     cwd: ".",
     reuseExistingServer: !process.env.CI,
-    url: "http://127.0.0.1:4173",
+    url: playwrightBaseUrl,
   },
 });

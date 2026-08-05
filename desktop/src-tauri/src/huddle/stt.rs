@@ -33,6 +33,16 @@ use tokio::sync::mpsc as tokio_mpsc;
 
 // ── Public pipeline handle ────────────────────────────────────────────────────
 
+/// Output produced by the local recognizer.
+///
+/// `Flushed` is an internal ordering marker used by composer dictation: every
+/// transcript queued before the marker belongs to the completed recording.
+#[derive(Debug, PartialEq)]
+pub enum SttOutput {
+    Transcript(String),
+    Flushed,
+}
+
 /// Bounded audio queue capacity.
 /// 100 ms batches at 48 kHz ≈ 19 KB each → 50 slots ≈ 5 s / ~1 MB max backlog.
 const AUDIO_QUEUE_DEPTH: usize = 50;
@@ -45,7 +55,7 @@ const MAX_SPEECH_SAMPLES: usize = 16_000 * 30;
 ///
 /// Not Clone — wrap in `Arc` to share across threads.
 ///
-/// The text receiver (`tokio::sync::mpsc::Receiver<String>`) is returned
+/// The output receiver (`tokio::sync::mpsc::Receiver<SttOutput>`) is returned
 /// separately from `new()` so the caller can move it directly into an async
 /// task without holding a Mutex across await points.
 #[derive(Debug)]
@@ -79,7 +89,7 @@ impl SttPipeline {
     /// If model files are missing, the worker logs and exits cleanly —
     /// the pipeline handle is still returned but will never produce text.
     ///
-    /// The `tokio::sync::mpsc::Receiver<String>` is returned separately so the
+    /// The `tokio::sync::mpsc::Receiver<SttOutput>` is returned separately so the
     /// caller can move it directly into an async task. This avoids holding a
     /// `Mutex<Receiver>` across await points (which would block a Tokio worker
     /// thread on every `recv_timeout` call).
@@ -88,9 +98,9 @@ impl SttPipeline {
         tts_active: Arc<AtomicBool>,
         tts_cancel: Option<Arc<AtomicBool>>,
         ptt_active: Option<Arc<AtomicBool>>,
-    ) -> Result<(Self, tokio_mpsc::Receiver<String>), String> {
+    ) -> Result<(Self, tokio_mpsc::Receiver<SttOutput>), String> {
         let (audio_tx, audio_rx) = mpsc::sync_channel::<Vec<u8>>(AUDIO_QUEUE_DEPTH);
-        let (text_tx, text_rx) = tokio_mpsc::channel::<String>(64);
+        let (text_tx, text_rx) = tokio_mpsc::channel::<SttOutput>(64);
         let shutdown = Arc::new(AtomicBool::new(false));
 
         let shutdown_worker = Arc::clone(&shutdown);
@@ -145,6 +155,16 @@ impl SttPipeline {
         // Drop audio if the pipeline can't keep up — better than blocking the UI.
         let _ = self.audio_tx.try_send(pcm_bytes);
         Ok(())
+    }
+
+    /// Flush the current utterance and enqueue a [`SttOutput::Flushed`] marker.
+    ///
+    /// Browser audio batches are always non-empty, so an empty PCM frame is a
+    /// collision-free control message.
+    pub fn flush(&self) -> Result<(), String> {
+        self.audio_tx
+            .try_send(Vec::new())
+            .map_err(|error| format!("failed to flush speech recognizer: {error}"))
     }
 }
 
@@ -204,7 +224,7 @@ const STT_NUM_THREADS: i32 = 1;
 fn stt_worker(
     model_dir: PathBuf,
     audio_rx: Receiver<Vec<u8>>,
-    text_tx: tokio_mpsc::Sender<String>,
+    text_tx: tokio_mpsc::Sender<SttOutput>,
     shutdown: Arc<AtomicBool>,
     tts_active: Arc<AtomicBool>,
     tts_cancel: Option<Arc<AtomicBool>>,
@@ -327,6 +347,20 @@ fn stt_worker(
         }
 
         for bytes in batch {
+            if bytes.is_empty() {
+                if in_speech && !speech_buf.is_empty() {
+                    flush_to_stt(&speech_buf, &recognizer, &text_tx);
+                }
+                speech_buf.clear();
+                silence_frames = 0;
+                in_speech = false;
+                input_buf_48k.clear();
+                leftover_16k.clear();
+                if text_tx.blocking_send(SttOutput::Flushed).is_err() {
+                    return;
+                }
+                continue;
+            }
             // Convert raw bytes to f32 samples (little-endian).
             let samples_48k = bytes_to_f32(&bytes);
             input_buf_48k.extend_from_slice(&samples_48k);
@@ -406,7 +440,7 @@ fn process_16k_samples(
     in_speech: &mut bool,
     barge_in_frames: &mut usize,
     recognizer: &sherpa_onnx::OfflineRecognizer,
-    text_tx: &tokio_mpsc::Sender<String>,
+    text_tx: &tokio_mpsc::Sender<SttOutput>,
     tts_active: &Arc<AtomicBool>,
     tts_cancel: Option<&AtomicBool>,
     tts_stopped_at: &mut Option<std::time::Instant>,
@@ -528,7 +562,7 @@ fn process_16k_samples(
 fn flush_to_stt(
     speech_buf: &[f32],
     recognizer: &sherpa_onnx::OfflineRecognizer,
-    text_tx: &tokio_mpsc::Sender<String>,
+    text_tx: &tokio_mpsc::Sender<SttOutput>,
 ) {
     if speech_buf.is_empty() {
         return;
@@ -544,7 +578,7 @@ fn flush_to_stt(
         .unwrap_or_default();
 
     if !text.is_empty() {
-        if let Err(e) = text_tx.blocking_send(text) {
+        if let Err(e) = text_tx.blocking_send(SttOutput::Transcript(text)) {
             eprintln!("buzz-desktop: STT text channel closed: {e}");
         }
     }

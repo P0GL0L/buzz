@@ -85,6 +85,30 @@ pub fn verify_nip42_event(
     Ok(())
 }
 
+/// Verify a NIP-42 AUTH event against one of a bounded set of relay URLs.
+///
+/// Reverse-proxy deployments can expose one configured public WSS origin while
+/// retaining a loopback-only origin URL. Callers must construct this list from
+/// trusted configuration, never from forwarding headers supplied by the client.
+pub fn verify_nip42_event_for_urls(
+    event: &Event,
+    expected_challenge: &str,
+    relay_urls: &[String],
+) -> Result<(), AuthError> {
+    if relay_urls.is_empty() {
+        return Err(AuthError::RelayUrlMismatch);
+    }
+
+    let mut last_error = AuthError::RelayUrlMismatch;
+    for relay_url in relay_urls {
+        match verify_nip42_event(event, expected_challenge, relay_url) {
+            Ok(()) => return Ok(()),
+            Err(error) => last_error = error,
+        }
+    }
+    Err(last_error)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +203,21 @@ mod tests {
         let a = normalize_relay_url("wss://relay.example.com/");
         let b = normalize_relay_url("wss://relay.example.com");
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn configured_public_alias_is_accepted_without_accepting_other_hosts() {
+        let keys = Keys::generate();
+        let challenge = generate_challenge();
+        let public = "wss://buzz-dev.example.com";
+        let event = make_auth_event(&keys, &challenge, public);
+        let allowed = vec!["ws://localhost:3000".to_string(), public.to_string()];
+        assert!(verify_nip42_event_for_urls(&event, &challenge, &allowed).is_ok());
+
+        let denied = vec!["ws://localhost:3000".to_string()];
+        assert!(matches!(
+            verify_nip42_event_for_urls(&event, &challenge, &denied),
+            Err(AuthError::RelayUrlMismatch)
+        ));
     }
 }

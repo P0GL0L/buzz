@@ -1000,6 +1000,7 @@ declare global {
       command: string;
       payload: unknown;
     }>;
+    __BUZZ_E2E_NATIVE_BROWSER__?: boolean;
     __BUZZ_E2E_WEBVIEW_ZOOM__?: number;
     __BUZZ_E2E_HAS_MOCK_LIVE_SUBSCRIPTION__?: (input: {
       channelName: string;
@@ -9405,6 +9406,7 @@ export function maybeInstallE2eTauriMocks() {
   window.__BUZZ_E2E_COMMANDS__ = [];
   window.__BUZZ_E2E_COMMAND_PAYLOADS__ = [];
   window.__BUZZ_E2E_COMMAND_LOG__ = [];
+  window.__BUZZ_E2E_NATIVE_BROWSER__ = false;
   window.__BUZZ_E2E_SIGNED_EVENTS__ = [];
   window.__BUZZ_E2E_WEBVIEW_ZOOM__ = 1;
   window.__BUZZ_E2E_EMIT_MOCK_MESSAGE__ = ({
@@ -10419,6 +10421,126 @@ export function maybeInstallE2eTauriMocks() {
         return activeConfig?.mock?.relayRequiresMembership ?? false;
       case "discover_acp_providers":
         return handleDiscoverAcpRuntimes(activeConfig);
+      case "list_provider_connections":
+        return [
+          {
+            version: 2,
+            providerId: "xai",
+            runtimeId: "grok",
+            label: "Grok Build",
+            authMethod: "oauth",
+            installState: "installed",
+            authenticationState: "unknown",
+            availability: "installed_unverified",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://build.x.ai/docs",
+          },
+          {
+            version: 2,
+            providerId: "google-personal",
+            runtimeId: "antigravity",
+            label: "Google Antigravity",
+            authMethod: "google-oauth",
+            installState: "installed",
+            authenticationState: "authenticated",
+            availability: "authenticated_unverified",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://antigravity.google/docs/cli/install",
+          },
+          {
+            version: 2,
+            providerId: "google-enterprise",
+            runtimeId: "gemini",
+            label: "Gemini CLI",
+            authMethod: "google-oauth-or-cloud",
+            installState: "not_installed",
+            authenticationState: "unavailable",
+            availability: "not_installed",
+            verificationTime: null,
+            expirationTime: null,
+            storageScope:
+              "buzz-dev-provider-directory-and-provider-owned-keyring",
+            failure: null,
+            installUrl: "https://github.com/google-gemini/gemini-cli",
+          },
+        ];
+      case "connect_provider_connection":
+        return {
+          version: 2,
+          providerId: (payload as { providerId: string }).providerId,
+          launched: true,
+          status: "pending_consent",
+        };
+      case "verify_provider_connection":
+        return {
+          version: 2,
+          providerId: (payload as { providerId: string }).providerId,
+          runtimeId: "mock",
+          label: "Mock provider",
+          authMethod: "oauth",
+          installState: "installed",
+          authenticationState: "authenticated",
+          availability: "verified",
+          verificationTime: "2026-07-30T18:00:00Z",
+          expirationTime: null,
+          storageScope:
+            "buzz-dev-provider-directory-and-provider-owned-keyring",
+          failure: null,
+          installUrl: "https://example.com/provider",
+        };
+      case "disconnect_provider_connection":
+        return {
+          version: 2,
+          providerId: (payload as { providerId: string }).providerId,
+          status: "disconnected",
+        };
+      case "list_skill_registry":
+        return {
+          version: 1,
+          generatedAt: "2026-07-30T16:00:00Z",
+          registryDigest: `sha256:${"a".repeat(64)}`,
+          registryRevision: `sha256:${"b".repeat(64)}`,
+          registryVersion: 1,
+          ttlSeconds: 86400,
+          skills: [
+            {
+              abstractRequirements: ["browser access"],
+              availability: "available",
+              capabilities: ["Inspect and operate a browser page"],
+              displayName: "Browser control",
+              expired: false,
+              installationState: "callable",
+              observedAt: "2026-07-30T15:55:00Z",
+              owningAgent: "c".repeat(64),
+              registryVersion: 1,
+              routable: true,
+              runtimeClass: "codex",
+              skillId: "codex:browser-control",
+            },
+            {
+              abstractRequirements: ["workbook access"],
+              availability: "unknown",
+              capabilities: ["Prepare a workbook"],
+              displayName: "Spreadsheets",
+              expired: true,
+              installationState: "installed",
+              observedAt: "2026-07-20T12:00:00Z",
+              owningAgent: "d".repeat(64),
+              registryVersion: 1,
+              routable: false,
+              runtimeClass: "hermes",
+              skillId: "hermes:spreadsheets",
+            },
+          ],
+        };
       case "save_custom_harness":
         return handleSaveCustomHarness(
           payload as Parameters<typeof handleSaveCustomHarness>[0],
@@ -11181,6 +11303,146 @@ export function maybeInstallE2eTauriMocks() {
         if (!response.ok) throw new Error(`fetch failed: ${response.status}`);
         return await response.arrayBuffer();
       }
+      case "preview_office_artifact": {
+        const filename = (
+          payload as { filename: string }
+        ).filename.toLowerCase();
+        if (filename.endsWith(".docx")) {
+          return {
+            version: 1,
+            format: "docx",
+            document: {
+              kind: "docx",
+              blocks: [
+                { kind: "heading", level: 1, text: "Agent Lab Brief" },
+                {
+                  kind: "paragraph",
+                  text: "Evidence-backed collaboration workspace.",
+                },
+                {
+                  kind: "table",
+                  rows: [
+                    ["Owner", "Capability"],
+                    ["Vision", "Artifact QA"],
+                  ],
+                },
+              ],
+              links: [],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        if (filename.endsWith(".xlsx")) {
+          return {
+            version: 1,
+            format: "xlsx",
+            document: {
+              kind: "xlsx",
+              sheets: [
+                {
+                  name: "Capabilities",
+                  rows: [
+                    [
+                      {
+                        reference: "A1",
+                        value: "Callable skills",
+                        formula: null,
+                      },
+                      { reference: "B1", value: "12", formula: "SUM(B2:B4)" },
+                    ],
+                  ],
+                  truncated: false,
+                },
+              ],
+              charts: [{ title: "Skills by owner", chartType: "bar" }],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        if (filename.endsWith(".pptx")) {
+          return {
+            version: 1,
+            format: "pptx",
+            document: {
+              kind: "pptx",
+              slides: [
+                {
+                  number: 1,
+                  title: "ASV Buzz",
+                  body: ["Trusted agent collaboration"],
+                  notes: ["Keep production isolated."],
+                },
+              ],
+            },
+            truncated: false,
+            warnings: [],
+            fidelity: null,
+          };
+        }
+        throw new Error("Unsupported Office fixture");
+      }
+      case "open_workspace_browser":
+        // Browser-based E2E cannot host a Tauri child webview. Returning the
+        // explicit fallback mode exercises the retained sandboxed iframe path.
+        // A test-only native state lets lifecycle and bounds scheduling run
+        // without pretending that Chromium contains the macOS child webview.
+        return {
+          version: 1,
+          mode: window.__BUZZ_E2E_NATIVE_BROWSER__ ? "native" : "fallback",
+          currentUrl: (payload as { url: string }).url,
+          title: null,
+          loading: false,
+          activeAgent: null,
+          history: [(payload as { url: string }).url],
+          historyIndex: 0,
+          actions: [],
+          error: null,
+        };
+      case "get_workspace_browser_state":
+        return {
+          version: 1,
+          mode: "fallback",
+          currentUrl: null,
+          title: null,
+          loading: false,
+          activeAgent: null,
+          history: [],
+          historyIndex: 0,
+          actions: [],
+          error: null,
+        };
+      case "update_workspace_browser_bounds":
+      case "navigate_workspace_browser":
+      case "workspace_browser_back":
+      case "workspace_browser_forward":
+      case "reload_workspace_browser":
+      case "stop_workspace_browser":
+      case "close_workspace_browser":
+      case "clear_workspace_browser_session":
+      case "clear_workspace_browser_profile":
+      case "click_workspace_browser":
+      case "type_workspace_browser":
+      case "scroll_workspace_browser":
+        return null;
+      case "extract_workspace_browser_page":
+        return {
+          version: 1,
+          url: "https://example.com/",
+          title: "Example",
+          text: "Example page extraction",
+          links: [],
+          truncated: false,
+        };
+      case "capture_workspace_browser":
+        return {
+          version: 1,
+          completionState: "unsupported",
+          reason: "Native screenshots are not available in browser-mock E2E.",
+        };
       case "fetch_snapshot_bytes": {
         // The real command fetches + validates a snapshot attachment in memory
         // (size cap, SHA-256, decode). In E2E the bridge returns a minimal

@@ -844,6 +844,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "buzz-antigravity-acp"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "uuid",
+]
+
+[[package]]
 name = "buzz-audit"
 version = "0.1.0"
 dependencies = [
@@ -940,6 +950,16 @@ dependencies = [
  "url",
  "uuid",
  "zeroize",
+]
+
+[[package]]
+name = "buzz-cursor-acp"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "tokio",
+ "tokio-util",
+ "uuid",
 ]
 
 [[package]]

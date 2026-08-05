@@ -361,7 +361,7 @@ fn spawn_without_stdio(mut command: Command) -> Result<(), String> {
 }
 
 #[cfg(target_os = "macos")]
-fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
+pub(crate) fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
     let mut script = tempfile::Builder::new()
         .prefix("buzz-auth-")
         .suffix(".command")
@@ -395,7 +395,7 @@ fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
 }
 
 #[cfg(target_os = "linux")]
-fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
+pub(crate) fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
     let command = shell_join(argv);
     let candidates: [(&str, &[&str]); 4] = [
         ("x-terminal-emulator", &["-e", "sh", "-lc"]),
@@ -414,7 +414,7 @@ fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
 }
 
 #[cfg(target_os = "windows")]
-fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
+pub(crate) fn launch_visible_terminal(argv: &[String]) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
 
     const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
@@ -436,7 +436,7 @@ fn windows_terminal_args(argv: &[String]) -> Vec<String> {
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-fn launch_visible_terminal(_argv: &[String]) -> Result<(), String> {
+pub(crate) fn launch_visible_terminal(_argv: &[String]) -> Result<(), String> {
     Err("opening a terminal is not supported on this platform".to_string())
 }
 

@@ -1051,6 +1051,7 @@ dependencies = [
  "opus",
  "plist",
  "png 0.18.1",
+ "quick-xml 0.38.4",
  "regex",
  "reqwest 0.13.4",
  "rodio",

@@ -13,6 +13,11 @@ export type ImetaEntry = {
   duration?: number;
   /** SHA-256 hex of the attachment bytes (from imeta `x` field). */
   x?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 };
 
 export type ImetaLookup = Map<string, ImetaEntry>;

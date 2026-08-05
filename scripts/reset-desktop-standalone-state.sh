@@ -32,6 +32,13 @@ case "${BUZZ_TEST_PLATFORM:-$(uname -s)}" in
         remove_path "$HOME/Library/Preferences/$instance_id.plist"
         if command -v security >/dev/null 2>&1; then
             while security delete-generic-password -s "$keyring_service" >/dev/null 2>&1; do :; done
+            # The canonical standalone identity used the unscoped dev service
+            # before service scoping was introduced. Clear that dev-only
+            # predecessor on an explicit fresh reset so it cannot be adopted
+            # into `buzz-desktop-dev.main`. Never touch `buzz-desktop`.
+            if [[ "$keyring_service" == "buzz-desktop-dev.main" ]]; then
+                while security delete-generic-password -s buzz-desktop-dev >/dev/null 2>&1; do :; done
+            fi
         fi
         ;;
     Linux)

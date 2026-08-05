@@ -32,8 +32,8 @@ pub mod scope;
 
 pub use access::{check_read_access, check_write_access, require_scope, ChannelAccessChecker};
 pub use error::AuthError;
-pub use nip42::{generate_challenge, verify_nip42_event};
-pub use nip98::verify_nip98_event;
+pub use nip42::{generate_challenge, verify_nip42_event, verify_nip42_event_for_urls};
+pub use nip98::{verify_nip98_event, verify_nip98_event_for_urls};
 pub use nip98_replay::{
     nip98_replay_key, nip98_replay_key_for_scope, Nip98ReplayGuard, DEFAULT_REPLAY_TTL_SECS,
     MAX_REPLAY_TTL_SECS,
@@ -139,6 +139,31 @@ impl AuthService {
             channel_ids: None,
             auth_method: AuthMethod::Nip42,
             agent_owner_pubkey: None, // Set later by relay membership gate if NIP-OA
+        })
+    }
+
+    /// Verify a NIP-42 AUTH event against trusted configured relay origins.
+    pub async fn verify_auth_event_for_urls(
+        &self,
+        auth_event: nostr::Event,
+        expected_challenge: &str,
+        relay_urls: &[String],
+    ) -> Result<AuthContext, AuthError> {
+        let event_clone = auth_event.clone();
+        let challenge_owned = expected_challenge.to_string();
+        let relay_urls_owned = relay_urls.to_vec();
+        tokio::task::spawn_blocking(move || {
+            verify_nip42_event_for_urls(&event_clone, &challenge_owned, &relay_urls_owned)
+        })
+        .await
+        .map_err(|_| AuthError::Internal("spawn_blocking panicked".into()))??;
+
+        Ok(AuthContext {
+            pubkey: auth_event.pubkey,
+            scopes: Scope::all_known(),
+            channel_ids: None,
+            auth_method: AuthMethod::Nip42,
+            agent_owner_pubkey: None,
         })
     }
 }

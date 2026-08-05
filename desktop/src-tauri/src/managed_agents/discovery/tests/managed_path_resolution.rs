@@ -1,5 +1,19 @@
 use crate::managed_agents::discovery::{clear_resolve_cache, resolve_command};
 
+#[test]
+fn command_search_prefers_sidecars_beside_the_running_executable() {
+    let executable_parent = std::env::current_exe()
+        .expect("test executable path must be available")
+        .parent()
+        .expect("test executable must have a parent")
+        .to_path_buf();
+
+    assert_eq!(
+        super::super::command_search_dirs().first(),
+        Some(&executable_parent)
+    );
+}
+
 /// The legacy Goose Windows installer wrote `%USERPROFILE%\goose\goose.exe`,
 /// a directory on no standard PATH. `resolve_command_uncached` finds binaries
 /// outside PATH only by scanning `common_binary_paths()`, so that directory

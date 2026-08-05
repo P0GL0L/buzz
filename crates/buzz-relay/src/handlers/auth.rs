@@ -77,15 +77,18 @@ pub async fn handle_auth(event: nostr::Event, conn: Arc<ConnectionState>, state:
     // tampered, NIP-42 verification will fail before we ever inspect it.
     let auth_tag_json = extract_auth_tag_json(&event);
 
-    let relay_url =
-        crate::api::bridge::nip42_expected_relay_url(&state.config.relay_url, &conn.tenant);
+    let relay_urls = crate::api::bridge::nip42_expected_relay_urls(
+        &state.config.relay_url,
+        state.config.remote_relay_url.as_deref(),
+        &conn.tenant,
+    );
     let auth_svc = Arc::clone(&state.auth);
 
     metrics::counter!("buzz_auth_attempts_total", "method" => "nip42").increment(1);
 
     // Pure NIP-42 verification — crypto only, no DB lookups.
     match auth_svc
-        .verify_auth_event(event, &challenge, &relay_url)
+        .verify_auth_event_for_urls(event, &challenge, &relay_urls)
         .await
     {
         Ok(mut auth_ctx) => {

@@ -247,6 +247,16 @@ fn is_stored_event_exhaustion_ambiguous(e: &CliError) -> bool {
     }
 }
 
+/// Returns `true` only for the hosted Cloudflare Access response that proves
+/// the HTTP request was rejected before reaching the relay.
+fn is_cloudflare_access_pre_relay_rejection(e: &CliError) -> bool {
+    matches!(
+        e,
+        CliError::Relay { status: 403, body }
+            if body.contains("cloudflare_access_jwt_required")
+    )
+}
+
 fn is_safe_media_path_segment(sha256_ext: &str) -> bool {
     let segments: Vec<&str> = sha256_ext.split('.').collect();
     match segments.as_slice() {
@@ -1050,6 +1060,19 @@ impl BuzzClient {
             })
             .await;
 
+        // Some hosted relays intentionally put their HTTP bridge behind
+        // Cloudflare Access while leaving authenticated NIP-01 WebSockets
+        // available to native clients and agents. A Cloudflare pre-relay 403
+        // is definitive non-delivery, so it is safe to publish the exact same
+        // signed event over WebSocket instead of treating the write as
+        // ambiguous or asking an unattended agent for browser credentials.
+        if result
+            .as_ref()
+            .is_err_and(is_cloudflare_access_pre_relay_rejection)
+        {
+            return self.publish_event_ws(event).await;
+        }
+
         // Translate ambiguous final errors to DeliveryUnknown so an outer agent
         // following retryable:true does not re-sign and risk a duplicate write.
         // Connect failures stay Network (retryable:true) — definitively never received.
@@ -1071,6 +1094,11 @@ impl BuzzClient {
     /// `buzz_ws_client::publish_event` which handles connect, NIP-42 auth,
     /// EVENT send, OK wait, and graceful close.
     pub async fn publish_ephemeral_event(&self, event: nostr::Event) -> Result<String, CliError> {
+        self.publish_event_ws(event).await
+    }
+
+    /// Publish an already signed event via an authenticated NIP-01 WebSocket.
+    async fn publish_event_ws(&self, event: nostr::Event) -> Result<String, CliError> {
         let ws_url = to_ws_url(&self.relay_url);
         // Hard cap — inner wait ceilings sum to 70 s; connect time and network RTT are
         // additional overhead absorbed by this budget.
@@ -1594,7 +1622,7 @@ mod retry_policy_tests {
     use tokio::net::TcpListener;
 
     use super::super::error::CliError;
-    use super::BuzzClient;
+    use super::{is_cloudflare_access_pre_relay_rejection, BuzzClient};
 
     /// Spawn a one-shot axum server on a random port.  The handler `f` receives the
     /// attempt counter (incremented before every call) and returns a `(StatusCode,
@@ -1650,6 +1678,27 @@ mod retry_policy_tests {
         EventBuilder::new(Kind::TextNote, "hi")
             .sign_with_keys(keys)
             .unwrap()
+    }
+
+    #[test]
+    fn websocket_fallback_requires_exact_cloudflare_pre_relay_rejection() {
+        let access_rejection = CliError::Relay {
+            status: 403,
+            body: r#"{"error":"cloudflare_access_jwt_required"}"#.into(),
+        };
+        assert!(is_cloudflare_access_pre_relay_rejection(&access_rejection));
+
+        let relay_forbidden = CliError::Relay {
+            status: 403,
+            body: "restricted: not a relay member".into(),
+        };
+        assert!(!is_cloudflare_access_pre_relay_rejection(&relay_forbidden));
+
+        let proxy_failure = CliError::Relay {
+            status: 502,
+            body: "cloudflare_access_jwt_required".into(),
+        };
+        assert!(!is_cloudflare_access_pre_relay_rejection(&proxy_failure));
     }
 
     /// A moderation command (kind 9040) that fails the first attempt with HTTP 429

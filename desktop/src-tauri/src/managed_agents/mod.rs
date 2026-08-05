@@ -20,8 +20,10 @@ pub(crate) mod persona_events;
 mod personas;
 #[cfg(windows)]
 mod process_lifecycle;
+mod provider_paths;
 pub(crate) mod readiness;
 pub(crate) mod reconcile;
+mod relay_authority;
 mod relay_mesh;
 mod repos;
 mod restore;
@@ -61,10 +63,12 @@ pub use nest::*;
 pub use personas::*;
 #[cfg(windows)]
 pub use process_lifecycle::*;
+pub(crate) use provider_paths::{provider_command_path, register_provider_root};
 pub(crate) use readiness::{
     agent_readiness, resolve_effective_agent_env, resolve_effective_harness_descriptor,
     AgentReadiness, Requirement,
 };
+pub(crate) use relay_authority::configured_relay_connection_url;
 pub use relay_mesh::*;
 pub use repos::{
     effective_repos_dir, ensure_repos_symlink, resolve_repos_at_boot, validate_repos_dir,

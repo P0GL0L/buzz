@@ -28,7 +28,7 @@ const DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60)
 /// - URL scheme is `https` (or `http` for localhost dev)
 /// - URL origin matches the relay base URL
 /// - URL path matches `/media/{hash}.{ext}`
-fn validate_download_url(url: &str, relay_base: &str) -> Result<(), String> {
+pub(crate) fn validate_download_url(url: &str, relay_base: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|_| "invalid URL".to_string())?;
     let base = url::Url::parse(relay_base).map_err(|_| "invalid relay base URL".to_string())?;
 
@@ -276,7 +276,7 @@ fn redirect_refusal_error(status: reqwest::StatusCode) -> Option<String> {
 }
 
 /// Core streaming fetcher with a caller-supplied byte cap.
-async fn fetch_blob_bytes_with_cap(
+pub(crate) async fn fetch_blob_bytes_with_cap(
     url: &str,
     state: &State<'_, AppState>,
     cap: u64,

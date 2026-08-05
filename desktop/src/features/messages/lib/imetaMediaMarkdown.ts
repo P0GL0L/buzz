@@ -31,6 +31,11 @@ import { parseImetaTags } from "@/shared/ui/markdown/parseImeta";
 export type ImetaMedia = BlobDescriptor & {
   /** Composer-only label used for attachment links; not emitted in imeta. */
   displayLabel?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 };
 
 /**
@@ -69,6 +74,15 @@ export function imetaMediaFromTags(
       ...(entry.duration != null ? { duration: entry.duration } : {}),
       ...(entry.image ? { image: entry.image } : {}),
       ...(entry.filename ? { filename: entry.filename } : {}),
+      ...(entry.artifactId ? { artifactId: entry.artifactId } : {}),
+      ...(entry.artifactVersion
+        ? { artifactVersion: entry.artifactVersion }
+        : {}),
+      ...(entry.artifactParent ? { artifactParent: entry.artifactParent } : {}),
+      ...(entry.artifactSource ? { artifactSource: entry.artifactSource } : {}),
+      ...(entry.artifactCorrelation
+        ? { artifactCorrelation: entry.artifactCorrelation }
+        : {}),
     });
   }
   return out;
@@ -101,6 +115,13 @@ export function buildImetaTags(
     ...(d.duration != null ? [`duration ${d.duration}`] : []),
     ...(d.image ? [`image ${d.image}`] : []),
     ...(d.filename ? [`filename ${d.filename}`] : []),
+    ...(d.artifactId ? [`artifact ${d.artifactId}`] : []),
+    ...(d.artifactVersion ? [`artifact-version ${d.artifactVersion}`] : []),
+    ...(d.artifactParent ? [`artifact-parent ${d.artifactParent}`] : []),
+    ...(d.artifactSource ? [`artifact-source ${d.artifactSource}`] : []),
+    ...(d.artifactCorrelation
+      ? [`artifact-correlation ${d.artifactCorrelation}`]
+      : []),
   ]);
 }
 

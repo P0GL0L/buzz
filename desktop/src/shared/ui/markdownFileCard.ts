@@ -9,12 +9,24 @@ export type FileCardImetaEntry = {
   x?: string;
   /** Optional thumbnail URL (from imeta `thumb` field). */
   thumb?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 };
 
 export type ResolvedFileCard = {
   href: string;
   filename: string;
+  mime: string;
   size?: number;
+  sha256?: string;
+  artifactId?: string;
+  artifactVersion?: number;
+  artifactParent?: string;
+  artifactSource?: string;
+  artifactCorrelation?: string;
 };
 
 /**
@@ -142,5 +154,20 @@ export function resolveFileCard(
   }
   const filename =
     entry.filename || childText.trim() || href.split("/").pop() || "file";
-  return { href: rewriteRelayUrl(href), filename, size: entry.size };
+  return {
+    href: rewriteRelayUrl(href),
+    filename,
+    mime: entry.m,
+    size: entry.size,
+    ...(entry.x ? { sha256: entry.x } : {}),
+    ...(entry.artifactId ? { artifactId: entry.artifactId } : {}),
+    ...(entry.artifactVersion
+      ? { artifactVersion: entry.artifactVersion }
+      : {}),
+    ...(entry.artifactParent ? { artifactParent: entry.artifactParent } : {}),
+    ...(entry.artifactSource ? { artifactSource: entry.artifactSource } : {}),
+    ...(entry.artifactCorrelation
+      ? { artifactCorrelation: entry.artifactCorrelation }
+      : {}),
+  };
 }

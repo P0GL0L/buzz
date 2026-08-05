@@ -46,8 +46,34 @@ test("resolveFileCard: builds a card for a generic file, preferring imeta filena
   assert.deepEqual(card, {
     href: PDF_URL,
     filename: "Q3-budget.pdf",
+    mime: "application/pdf",
     size: 2048,
   });
+});
+
+test("resolveFileCard: preserves relay-safe artifact revision metadata", () => {
+  const card = resolveFileCard(
+    {
+      m: "application/pdf",
+      filename: "report-v2.pdf",
+      x: "a".repeat(64),
+      artifactId: "artifact-123",
+      artifactVersion: 2,
+      artifactParent: "event-parent",
+      artifactSource: "revision",
+      artifactCorrelation: "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+    },
+    PDF_URL,
+    "",
+  );
+  assert.equal(card?.artifactId, "artifact-123");
+  assert.equal(card?.artifactVersion, 2);
+  assert.equal(card?.artifactParent, "event-parent");
+  assert.equal(card?.artifactSource, "revision");
+  assert.equal(
+    card?.artifactCorrelation,
+    "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+  );
 });
 
 test("resolveFileCard: falls back to link child text when imeta has no filename", () => {

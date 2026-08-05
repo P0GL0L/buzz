@@ -114,6 +114,41 @@ with a TypeScript lookup table or an id comparison in a component.
     published or removed. A queued update must stay visibly queued, and the
     catalog itself must render only relay-confirmed publications — never an
     optimistic local persona.
+11. **Runtime-key normalization must not rewrite the configured relay tenant.**
+    `ManagedAgentRuntimeKey` canonicalizes equivalent loopback spellings for
+    process bookkeeping, but child connections and access probes retain the
+    validated configured relay authority. In particular, do not pass a
+    runtime key's canonical `127.0.0.1` URL to network code when the selected
+    community is keyed by `localhost`.
+12. **Provider credential homes are Buzz Dev-owned spawn metadata.** Grok and
+    Gemini agents always receive the app-scoped `GROK_HOME` or
+    `GEMINI_CLI_HOME` selected by Rust at spawn time. Those keys are reserved
+    from persona and agent overrides so a definition cannot silently fall back
+    to a provider-global credential profile. Provider status exposed over IPC
+    is non-secret metadata only; tokens remain in provider-owned storage.
+13. **Personal-plan Google tasks are isolated.** The
+    `buzz-antigravity-acp` harness creates one bounded Antigravity print-mode
+    process for each ACP prompt and consumes its `stream-json` result. It never
+    uses `--continue`, reuses a provider conversation, or silently falls back
+    to Gemini. Rust injects the app-scoped Antigravity home and official `agy`
+    path at spawn time.
+14. **The desktop Skills surface is relay-safe only.** It reads the bounded
+    `relay-safe.json` projection, revalidates it, and recomputes observation
+    expiry. Do not point the UI at the canonical registry or add local paths,
+    host details, permission evidence, or connector configuration to its IPC
+    record.
+15. **Cursor uses the bundled bounded adapter, not the removed direct ACP
+    preset.** Current Cursor Agent CLI builds provide account-backed print mode
+    and live model discovery but no documented `cursor-agent acp` command.
+    `buzz-cursor-acp` creates one isolated Cursor task per ACP prompt, never
+    passes API keys or auth tokens, never resumes a provider conversation, and
+    never enables `--force`/`--yolo`. Cursor login remains in Cursor-owned local
+    storage, while the Buzz identity remains a distinct managed-agent key. The
+    adapter publishes successful final text through the sibling `buzz` CLI only
+    when a generated ACP prompt block starts with `[Context]`; channel and
+    optional reply IDs are parsed only from that block, content is supplied on
+    stdin, and relay acceptance plus a valid event ID are required before the
+    turn succeeds. Cursor itself must not publish the same final response.
 
 ## The tests that enforce this
 
@@ -132,6 +167,8 @@ with a TypeScript lookup table or an id comparison in a component.
   acceptance coverage for readiness, failure states, defaults, navigation,
   successful-empty vs failed optional-model discovery, and persistence races.
 - Rust: `runtime_metadata_env_vars` tests pin spawn-time key application.
+- Rust: `configured_connection_preserves_loopback_tenant_authority` pins the
+  separation between canonical process identity and configured relay tenancy.
 - Rust: persona sharing/retention tests pin relay+owner scoping, durable
   enqueue errors, relay rejection/unavailability, and accepted publication.
 

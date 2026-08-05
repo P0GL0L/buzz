@@ -30,6 +30,11 @@ const HARNESS_DESCRIPTIONS: Record<string, string> = {
   // Source: https://build.x.ai (docs unavailable during research; kept
   // deliberately conservative).
   grok: "xAI's coding agent, connected to Buzz through its ACP entrypoint.",
+  // Source: https://antigravity.google/docs/cli/
+  antigravity:
+    "Google's terminal agent, connected through Buzz's bounded ACP adapter.",
+  // Source: https://github.com/google-gemini/gemini-cli
+  gemini: "Google's open-source terminal agent with an official ACP mode.",
   // Source: https://github.com/anomalyco/opencode
   opencode: "An open-source coding agent.",
   // Sources: https://github.com/MoonshotAI/kimi-cli,

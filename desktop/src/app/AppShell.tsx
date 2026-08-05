@@ -1,10 +1,12 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Outlet, useLocation } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { deriveShellRoute } from "@/app/AppShell.helpers";
 import { AppShellProvider } from "@/app/AppShellContext";
 import * as BuzzTheme from "@/app/BuzzThemeSurfaces";
 import { AppShellOverlays } from "@/app/AppShellOverlays";
+import { AppShellContentWorkspace } from "@/app/AppShellContentWorkspace";
+import { AppShellWorkspace } from "@/features/workspace/ui/AppShellWorkspace";
 import { AppTopChrome } from "@/app/AppTopChrome";
 import { useAppNavigation } from "@/app/navigation/useAppNavigation";
 import { useBackForwardControls } from "@/app/navigation/useBackForwardControls";
@@ -88,12 +90,10 @@ import { useWebviewScrollBoundaryLock } from "@/shared/hooks/useWebviewScrollBou
 import { joinChannel } from "@/shared/api/tauri";
 import type { ChannelVisibility, SearchHit } from "@/shared/api/types";
 import { ChannelNavigationProvider } from "@/shared/context/ChannelNavigationContext";
-import { MainInsetProvider } from "@/shared/layout/MainInsetContext";
-import { chromeCssVarDefaults } from "@/shared/layout/chromeLayout";
 import { cn } from "@/shared/lib/cn";
 import { hasPrimaryShortcutModifier } from "@/shared/lib/platform";
 import { useMessageDeepLinks } from "@/shared/useMessageDeepLinks";
-import { SidebarInset, SidebarProvider } from "@/shared/ui/sidebar";
+import { SidebarProvider } from "@/shared/ui/sidebar";
 import { RelayConnectionOverlay } from "@/app/RelayConnectionOverlay";
 import { useSidebarRelayConnectionCard } from "@/features/sidebar/ui/useSidebarRelayConnectionCard";
 
@@ -819,6 +819,7 @@ export function AppShell() {
                             section={settingsSection}
                           />
                         </React.Suspense>
+                        <AppShellWorkspace />
                       </div>
                     ) : (
                       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -918,19 +919,7 @@ export function AppShell() {
                           onStarChannel={starChannel}
                           onUnstarChannel={unstarChannel}
                         />
-                        <MainInsetProvider mainInsetRef={mainInsetRef}>
-                          <SidebarInset
-                            ref={mainInsetRef}
-                            className="isolate min-h-0 min-w-0 overflow-hidden bg-sidebar"
-                            data-buzz-glass-inset
-                            data-buzz-shadow-viewport
-                            style={chromeCssVarDefaults as React.CSSProperties}
-                          >
-                            <BuzzTheme.ContentSurface>
-                              <Outlet />
-                            </BuzzTheme.ContentSurface>
-                          </SidebarInset>
-                        </MainInsetProvider>
+                        <AppShellContentWorkspace mainInsetRef={mainInsetRef} />
                         <RelayConnectionOverlay
                           card={relayConnectionCard}
                           errorMessage={channelsErrorMessage}

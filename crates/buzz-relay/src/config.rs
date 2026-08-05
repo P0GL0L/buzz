@@ -85,6 +85,9 @@ pub struct Config {
     pub relay_url: String,
     /// Public WebSocket URL of the dedicated device-pairing relay, when configured.
     pub pairing_relay_url: Option<String>,
+    /// Phone-reachable WebSocket URL of this community relay, when the local
+    /// development listener is fronted by a private TLS proxy.
+    pub remote_relay_url: Option<String>,
     /// Maximum number of concurrent WebSocket connections.
     pub max_connections: usize,
     /// Maximum number of concurrently executing message handlers.
@@ -495,6 +498,33 @@ impl Config {
             })
             .transpose()?;
 
+        let remote_relay_url = std::env::var("BUZZ_REMOTE_RELAY_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .map(|value| {
+                let parsed = url::Url::parse(&value).map_err(|e| {
+                    ConfigError::InvalidValue(format!(
+                        "BUZZ_REMOTE_RELAY_URL must be a valid wss:// URL: {e}"
+                    ))
+                })?;
+                if parsed.scheme() != "wss"
+                    || parsed.host_str().is_none()
+                    || !parsed.username().is_empty()
+                    || parsed.password().is_some()
+                    || !matches!(parsed.path(), "" | "/")
+                    || parsed.query().is_some()
+                    || parsed.fragment().is_some()
+                {
+                    return Err(ConfigError::InvalidValue(
+                        "BUZZ_REMOTE_RELAY_URL must be a credential-free wss:// origin without a path, query, or fragment"
+                            .to_string(),
+                    ));
+                }
+                Ok(value)
+            })
+            .transpose()?;
+
         let max_connections = std::env::var("BUZZ_MAX_CONNECTIONS")
             .ok()
             .and_then(|v| v.parse().ok())
@@ -648,7 +678,39 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
-        let relay_private_key = std::env::var("BUZZ_RELAY_PRIVATE_KEY").ok();
+        let relay_private_key = match std::env::var("BUZZ_RELAY_PRIVATE_KEY_FILE") {
+            Ok(path) if !path.trim().is_empty() => {
+                let path = std::path::PathBuf::from(path.trim());
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt as _;
+                    let metadata = std::fs::metadata(&path).map_err(|error| {
+                        ConfigError::InvalidValue(format!(
+                            "cannot read BUZZ_RELAY_PRIVATE_KEY_FILE {}: {error}",
+                            path.display()
+                        ))
+                    })?;
+                    if metadata.permissions().mode() & 0o077 != 0 {
+                        return Err(ConfigError::InvalidValue(format!(
+                            "BUZZ_RELAY_PRIVATE_KEY_FILE {} must not be accessible by group or others",
+                            path.display()
+                        )));
+                    }
+                }
+                Some(
+                    std::fs::read_to_string(&path)
+                        .map_err(|error| {
+                            ConfigError::InvalidValue(format!(
+                                "cannot read BUZZ_RELAY_PRIVATE_KEY_FILE {}: {error}",
+                                path.display()
+                            ))
+                        })?
+                        .trim()
+                        .to_string(),
+                )
+            }
+            _ => std::env::var("BUZZ_RELAY_PRIVATE_KEY").ok(),
+        };
 
         let uds_path = std::env::var("BUZZ_UDS_PATH")
             .ok()
@@ -940,6 +1002,7 @@ impl Config {
             db_read_pool_size,
             relay_url,
             pairing_relay_url,
+            remote_relay_url,
             max_connections,
             max_concurrent_handlers,
             send_buffer_size,
@@ -1520,6 +1583,32 @@ mod tests {
             result,
             Err(ConfigError::InvalidValue(ref msg)) if msg.contains("BUZZ_PAIRING_RELAY_URL")
         ));
+    }
+
+    #[test]
+    fn remote_relay_url_requires_bounded_wss_origin() {
+        let _guard = ENV_MUTEX.lock().unwrap();
+        std::env::set_var("BUZZ_REMOTE_RELAY_URL", "wss://asv-buzz.example.ts.net");
+        let config = Config::from_env().expect("config");
+        assert_eq!(
+            config.remote_relay_url.as_deref(),
+            Some("wss://asv-buzz.example.ts.net")
+        );
+
+        for invalid in [
+            "ws://asv-buzz.example.ts.net",
+            "https://asv-buzz.example.ts.net",
+            "wss://user:secret@asv-buzz.example.ts.net",
+            "wss://asv-buzz.example.ts.net?token=secret",
+        ] {
+            std::env::set_var("BUZZ_REMOTE_RELAY_URL", invalid);
+            let result = Config::from_env();
+            assert!(matches!(
+                result,
+                Err(ConfigError::InvalidValue(ref msg)) if msg.contains("BUZZ_REMOTE_RELAY_URL")
+            ));
+        }
+        std::env::remove_var("BUZZ_REMOTE_RELAY_URL");
     }
 
     #[test]

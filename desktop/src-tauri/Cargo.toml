@@ -58,7 +58,7 @@ user-idle = { version = "0.6", default-features = false }
 atomic-write-file = "0.3"
 anyhow = "1"
 dirs = "6"
-tauri = { version = "2", features = ["macos-private-api"] }
+tauri = { version = "2", features = ["macos-private-api", "unstable"] }
 tauri-plugin-deep-link = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
@@ -114,6 +114,7 @@ png = "0.18"
 arboard = { version = "3", features = ["wayland-data-control"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 zip = "8"
+quick-xml = "0.38"
 flate2 = "1"
 sherpa-onnx = "1.12"
 regex = "1"

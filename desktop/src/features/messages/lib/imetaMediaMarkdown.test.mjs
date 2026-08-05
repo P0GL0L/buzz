@@ -181,6 +181,25 @@ test("buildImetaTags keeps media filenames in imeta", () => {
   );
 });
 
+test("artifact revision metadata round-trips through signed imeta tags", () => {
+  const original = {
+    url: "https://b/report",
+    type: "application/pdf",
+    sha256: "a".repeat(64),
+    size: 2048,
+    uploaded: 1,
+    filename: "report-v2.pdf",
+    artifactId: "artifact-123",
+    artifactVersion: 2,
+    artifactParent: "event-parent",
+    artifactSource: "revision",
+    artifactCorrelation: "98f62eef-6b94-48e0-b2f6-d07aa798ef47",
+  };
+  assert.deepEqual(imetaMediaFromTags(buildImetaTags([original])), [
+    { ...original, uploaded: 0 },
+  ]);
+});
+
 test("formatImetaMediaLine: video mime → ![video] line (regardless of URL suffix)", () => {
   assert.equal(
     formatImetaMediaLine({ url: "https://cdn/blob/xyz", type: "video/mp4" }),

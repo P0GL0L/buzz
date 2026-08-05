@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use client::BuzzClient;
 use error::CliError;
 use nostr::Keys;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 /// Run the Buzz CLI from raw arguments (including `argv[0]`).
@@ -71,7 +72,7 @@ Configuration (flags override env vars):
   BUZZ_PRIVATE_KEY   Nostr private key (hex or nsec)  [required]
   BUZZ_AUTH_TAG      NIP-OA auth tag JSON  [optional]
 
-The 'pack' subcommand runs locally and does not require a relay connection.
+The 'pack' and read-only 'skills' subcommands run locally and do not require a relay connection.
 
 Exit codes: 0=ok  1=bad input  2=relay/network error  3=auth error  4=other  5=write conflict
 Errors are JSON on stderr: {\"error\": \"<category>\", \"message\": \"<detail>\"}"
@@ -233,6 +234,9 @@ enum Cmd {
     /// Persona pack operations (local, no relay connection needed)
     #[command(subcommand)]
     Pack(PackCmd),
+    /// Inventory, inspect, publish, and route host-owned skills
+    #[command(subcommand)]
+    Skills(SkillsCmd),
     /// Community moderation — reports queue, bans, timeouts, audit trail
     #[command(subcommand)]
     Moderation(ModerationCmd),
@@ -1669,6 +1673,170 @@ pub enum PackCmd {
     },
 }
 
+/// Provenance-aware skill inventory and routing commands.
+#[derive(Subcommand)]
+pub enum SkillsCmd {
+    /// Scan one or more host roots into canonical and relay-safe registries
+    #[command(after_help = "Source syntax: STATE:SHARING:PACKAGE:PATH\n\
+States: catalogued | installed | callable | degraded | unreachable\n\
+Sharing: private | team-indexed | portable\n\n\
+Example:\n  buzz skills scan --host vision-macbook --runtime codex \
+--owner <AGENT_PUBKEY> \
+--source callable:team-indexed:codex:/Users/me/.codex/skills")]
+    Scan {
+        /// Skill root in STATE:SHARING:PACKAGE:PATH form; repeatable
+        #[arg(long, required = true)]
+        source: Vec<String>,
+        /// Canonical local host label; never copied into the relay-safe projection
+        #[arg(long)]
+        host: String,
+        /// Abstract runtime class, such as codex or hermes
+        #[arg(long)]
+        runtime: String,
+        /// Invocation owner agent pubkey or stable routing identity
+        #[arg(long)]
+        owner: String,
+        /// Registry schema version
+        #[arg(long, default_value_t = 1)]
+        registry_version: u64,
+        /// Seconds before an observation becomes unknown
+        #[arg(long, default_value_t = 86_400)]
+        ttl_seconds: u64,
+        /// Canonical output path (default: ~/.buzz-dev/skill-registry/canonical.json)
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Relay-safe output path (default: ~/.buzz-dev/skill-registry/relay-safe.json)
+        #[arg(long)]
+        relay_out: Option<PathBuf>,
+    },
+    /// Validate a canonical or relay-safe registry
+    Validate {
+        /// Registry JSON file
+        registry: PathBuf,
+        /// Enforce the relay-safe schema and forbidden-field denylist
+        #[arg(long, default_value_t = false)]
+        relay_safe: bool,
+    },
+    /// Search or list relay-safe skill records
+    List {
+        /// Relay-safe registry JSON file
+        #[arg(long)]
+        registry: PathBuf,
+        /// Case-insensitive skill ID, display name, or capability query
+        #[arg(long)]
+        query: Option<String>,
+        /// Return only currently routable records
+        #[arg(long, default_value_t = false)]
+        routable: bool,
+    },
+    /// Show every host-safe observation for an exact skill ID
+    Show {
+        /// Relay-safe registry JSON file
+        #[arg(long)]
+        registry: PathBuf,
+        /// Exact canonical skill ID
+        skill_id: String,
+    },
+    /// Promote an installed observation after verifying an owner-signed result
+    ApplyReceipt {
+        /// Canonical local registry to update
+        #[arg(long)]
+        registry: PathBuf,
+        /// JSON-encoded signed Nostr event carrying skill-result/v1
+        #[arg(long)]
+        receipt: PathBuf,
+        /// Updated canonical output path (default: update --registry in place)
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Updated relay-safe output path
+        #[arg(long)]
+        relay_out: Option<PathBuf>,
+    },
+    /// Publish signed, searchable relay-safe records to a private channel
+    Publish {
+        /// Relay-safe registry JSON file
+        #[arg(long)]
+        registry: PathBuf,
+        /// Private channel UUID
+        #[arg(long)]
+        channel: String,
+        /// Validate and report the publication shape without sending
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Route a bounded task to the current owning agent
+    Route {
+        /// Relay-safe registry JSON file
+        #[arg(long)]
+        registry: PathBuf,
+        /// Exact skill ID
+        skill_id: String,
+        /// Require this owning agent pubkey when multiple observations exist
+        #[arg(long)]
+        owner: Option<String>,
+        /// Private channel UUID
+        #[arg(long)]
+        channel: String,
+        /// Bounded task text; use '-' to read from stdin
+        #[arg(long)]
+        task: String,
+        /// Required evidence label; repeatable
+        #[arg(long)]
+        evidence: Vec<String>,
+        /// Caller-provided UUID for idempotent correlation
+        #[arg(long)]
+        correlation_id: Option<String>,
+        /// Build and print the request without sending
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+    /// Return a signed result correlated to a skill-route/v1 request
+    Result {
+        /// Private channel UUID containing the route request
+        #[arg(long)]
+        channel: String,
+        /// Route request event ID; the result is posted as its signed reply
+        #[arg(long)]
+        reply_to: String,
+        /// Route request correlation UUID
+        #[arg(long)]
+        correlation_id: String,
+        /// Exact canonical skill ID
+        #[arg(long)]
+        skill_id: String,
+        /// Owner-observed skill version or registry version reference
+        #[arg(long)]
+        skill_version: String,
+        /// SHA-256 content reference for the executed skill
+        #[arg(long)]
+        skill_hash: String,
+        /// Abstract execution class, such as codex, hermes, or app-runtime
+        #[arg(long)]
+        execution_host_class: String,
+        /// completed | offline | denied | expired | degraded | unreachable
+        #[arg(long)]
+        state: String,
+        /// Bounded non-secret evidence summary
+        #[arg(long)]
+        evidence_summary: String,
+        /// Structured failure reason; required unless state is completed
+        #[arg(long)]
+        failure_reason: Option<String>,
+        /// Requesting agent pubkey to mention in the reply
+        #[arg(long)]
+        requester: String,
+        /// Confirm that the owning runtime discovered this skill
+        #[arg(long, default_value_t = false)]
+        runtime_discovered: bool,
+        /// Confirm that non-secret dependency and connector probes passed
+        #[arg(long, default_value_t = false)]
+        dependencies_probed: bool,
+        /// Build and print the result without sending
+        #[arg(long, default_value_t = false)]
+        dry_run: bool,
+    },
+}
+
 /// Community moderation commands.
 ///
 /// The community (tenant) is selected by the relay host in `--relay` /
@@ -1775,6 +1943,14 @@ async fn run(cli: Cli) -> Result<(), CliError> {
             PackCmd::Inspect { path } => commands::pack::cmd_inspect(path),
         };
     }
+    if let Cmd::Skills(ref sub) = cli.command {
+        if !matches!(
+            sub,
+            SkillsCmd::Publish { .. } | SkillsCmd::Route { .. } | SkillsCmd::Result { .. }
+        ) {
+            return commands::skills::dispatch_local(sub);
+        }
+    }
 
     // Auth: private key is required for all relay operations.
     // The keypair IS the identity — no tokens, no other auth.
@@ -1822,6 +1998,7 @@ async fn run(cli: Cli) -> Result<(), CliError> {
         Cmd::Media(sub) => commands::upload::dispatch_media(sub, &client).await,
         Cmd::Upload(sub) => commands::upload::dispatch(sub, &client).await,
         Cmd::Mem(sub) => commands::mem::dispatch(sub, &client).await,
+        Cmd::Skills(sub) => commands::skills::dispatch_relay(sub, &client).await,
         Cmd::Moderation(sub) => commands::moderation::dispatch(sub, &client, &cli.format).await,
         Cmd::Pack(_) => unreachable!("handled above"),
     }
@@ -1882,6 +2059,7 @@ mod tests {
             "pr",
             "reactions",
             "repos",
+            "skills",
             "social",
             "upload",
             "users",
@@ -2042,6 +2220,10 @@ mod tests {
         assert_eq!(names(&cmd, "media"), vec!["get"]);
         assert_eq!(names(&cmd, "upload"), vec!["file"]);
         assert_eq!(names(&cmd, "pack"), vec!["inspect", "validate"]);
+        assert_eq!(
+            names(&cmd, "skills"),
+            vec!["list", "publish", "route", "scan", "show", "validate"]
+        );
         assert_eq!(
             names(&cmd, "moderation"),
             vec![
