@@ -214,13 +214,13 @@ pub(crate) fn validate_harness_definition_pub(def: &HarnessDefinition) -> Result
 
 /// IDs reserved for the compiled-in catalog. A custom definition whose `id`
 /// collides with a built-in or preset is rejected to prevent shadowing (e.g. a
-/// file called `cursor.json` hiding the pre-existing tier-2 preset).
+/// file called `cursor.json` hiding the bundled Cursor runtime).
 ///
-/// Derived at compile time from `PRESET_HARNESSES` (tier-2) plus the four
+/// Derived at compile time from `PRESET_HARNESSES` (tier-2) plus the five
 /// tier-1 runtimes — no hand-maintained copy.  Adding a preset to
 /// `PRESET_HARNESSES` automatically reserves its ID without a separate edit.
 fn builtin_ids() -> impl Iterator<Item = &'static str> {
-    const TIER1: &[&str] = &["goose", "claude", "codex", "buzz-agent"];
+    const TIER1: &[&str] = &["goose", "claude", "codex", "cursor", "buzz-agent"];
     let tier2 = crate::managed_agents::discovery::preset_harness_ids();
     TIER1.iter().copied().chain(tier2.iter().copied())
 }
@@ -537,7 +537,7 @@ mod tests {
     #[test]
     fn builtin_ids_are_rejected() {
         // Tier-1 hard-coded IDs must always be reserved.
-        for id in &["goose", "claude", "codex", "buzz-agent"] {
+        for id in &["goose", "claude", "codex", "cursor", "buzz-agent"] {
             assert!(check_id_collision(id).is_err(), "{id} should be rejected");
         }
         // Tier-2 preset IDs must also be reserved (derived from PRESET_HARNESSES).
@@ -1137,8 +1137,8 @@ mod tests {
         );
         assert_eq!(found.unwrap().command, "my-custom-bin");
 
-        // At least one preset entry must be in the registry (e.g. "cursor").
-        let preset = lookup_loaded_harness_by_id("cursor");
+        // At least one tier-2 preset entry must be in the registry.
+        let preset = lookup_loaded_harness_by_id("omp");
         assert!(
             preset.is_some(),
             "warm registry must contain preset entries"
@@ -1150,9 +1150,9 @@ mod tests {
     fn warm_registry_with_no_custom_dir_loads_presets_only() {
         let _lock = registry_test_lock();
         warm_harness_registry_from_dir(None);
-        // At least the "cursor" preset must be present.
+        // At least one tier-2 preset must be present.
         assert!(
-            lookup_loaded_harness_by_id("cursor").is_some(),
+            lookup_loaded_harness_by_id("omp").is_some(),
             "presets must be reachable even without a custom dir"
         );
     }

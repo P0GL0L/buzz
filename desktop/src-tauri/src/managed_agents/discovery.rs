@@ -10,8 +10,10 @@ use crate::managed_agents::{
     HarnessSource,
 };
 
+mod cursor_runtime;
 mod runtime_metadata;
 
+use cursor_runtime::CURSOR_RUNTIME;
 pub(crate) use runtime_metadata::KnownAcpRuntime;
 
 const GOOSE_AVATAR_URL: &str = "https://goose-docs.ai/img/logo_dark.png";
@@ -169,6 +171,7 @@ const KNOWN_ACP_RUNTIMES: &[KnownAcpRuntime] = &[
         // Verified: `codex login status` exits 0 when logged in, non-zero otherwise.
         auth_probe_args: Some(&["codex", "login", "status"]),
     },
+    CURSOR_RUNTIME,
     KnownAcpRuntime {
         id: "buzz-agent",
         label: "Buzz Agent",
@@ -502,16 +505,21 @@ fn profile_target_dirs(root: &Path) -> [PathBuf; 2] {
 }
 
 fn command_search_dirs() -> Vec<PathBuf> {
-    let mut dirs = profile_target_dirs(&workspace_root_dir()).to_vec();
+    // A packaged app must use the sidecars that were signed and shipped beside
+    // its own executable. On a developer machine, workspace target directories
+    // may also exist; checking those first silently substitutes an unbundled
+    // binary and defeats package verification. During `tauri dev`, the current
+    // executable already lives in `target/debug`, so this ordering still picks
+    // the freshly-built development sidecars.
+    let mut dirs = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+        .into_iter()
+        .collect::<Vec<_>>();
+    dirs.extend(profile_target_dirs(&workspace_root_dir()));
     if let Ok(current_dir) = std::env::current_dir() {
         dirs.extend(profile_target_dirs(&current_dir));
     }
-
-    dirs.extend(
-        std::env::current_exe()
-            .ok()
-            .and_then(|path| path.parent().map(Path::to_path_buf)),
-    );
     dirs.into_iter().fold(Vec::new(), |mut unique, dir| {
         if !unique.contains(&dir) {
             unique.push(dir);
@@ -1529,15 +1537,6 @@ fn preset_catalog_entry(
 }
 
 const PRESET_HARNESSES: &[PresetHarness] = &[
-    PresetHarness {
-        id: "cursor",
-        label: "Cursor",
-        command: "cursor-agent",
-        args: &["acp"],
-        install_instructions_url: "https://cursor.com/downloads",
-        install_hint: "Buzz talks to Cursor through the cursor-agent CLI's ACP mode.",
-        underlying_cli: None,
-    },
     PresetHarness {
         id: "omp",
         label: "Oh My Pi",

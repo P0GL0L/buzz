@@ -137,6 +137,18 @@ with a TypeScript lookup table or an id comparison in a component.
     expiry. Do not point the UI at the canonical registry or add local paths,
     host details, permission evidence, or connector configuration to its IPC
     record.
+15. **Cursor uses the bundled bounded adapter, not the removed direct ACP
+    preset.** Current Cursor Agent CLI builds provide account-backed print mode
+    and live model discovery but no documented `cursor-agent acp` command.
+    `buzz-cursor-acp` creates one isolated Cursor task per ACP prompt, never
+    passes API keys or auth tokens, never resumes a provider conversation, and
+    never enables `--force`/`--yolo`. Cursor login remains in Cursor-owned local
+    storage, while the Buzz identity remains a distinct managed-agent key. The
+    adapter publishes successful final text through the sibling `buzz` CLI only
+    when a generated ACP prompt block starts with `[Context]`; channel and
+    optional reply IDs are parsed only from that block, content is supplied on
+    stdin, and relay acceptance plus a valid event ID are required before the
+    turn succeeds. Cursor itself must not publish the same final response.
 
 ## The tests that enforce this
 

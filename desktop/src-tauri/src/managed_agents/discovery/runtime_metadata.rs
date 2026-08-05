@@ -120,5 +120,16 @@ mod tests {
         );
         assert!(codex.adapter_install_instructions_url.contains("codex-acp"));
         assert!(codex.cli_install_hint.contains("Codex CLI"));
+
+        let cursor = known_acp_runtime_exact("cursor").unwrap();
+        assert_eq!(cursor.commands, &["buzz-cursor-acp"]);
+        assert_eq!(cursor.aliases, &["cursor-agent"]);
+        assert_eq!(cursor.underlying_cli, Some("cursor-agent"));
+        assert_eq!(
+            cursor.auth_probe_args,
+            Some(&["cursor-agent", "status"][..])
+        );
+        assert!(cursor.adapter_install_commands.is_empty());
+        assert!(cursor.adapter_install_hint.contains("ships with ASV Buzz"));
     }
 }
